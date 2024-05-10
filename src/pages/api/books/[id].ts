@@ -60,7 +60,7 @@ export default async function handler(
             info: { update: data.info },
             content: { create: content },
           },
-          where: { id },
+          where: { id, isDisabled: false },
         });
 
         if (paragraphs.length) {
@@ -68,7 +68,7 @@ export default async function handler(
         }
 
         const result = await tx.book.findUnique({
-          where: { id },
+          where: { id, isDisabled: false },
           include: booksInclude,
         });
 
@@ -90,14 +90,14 @@ export default async function handler(
     } else if (req.method === 'GET') {
       if (req.query.checkPrivacy === 'true') {
         const result = await prisma.bookCredentials.findUnique({
-          where: { bookId: id },
+          where: { bookId: id, book: { isDisabled: false } },
           select: { isPrivate: true },
         });
 
         return res.status(200).json(result);
       } else {
         const result = await prisma.book.findUnique({
-          where: { id },
+          where: { id, isDisabled: false },
           include: booksInclude,
         });
 
