@@ -1,0 +1,67 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Book {
+  id          String           @id
+  credentials BookCredentials?
+  info        BookInfo?
+  content     BookContent[]
+  isDisabled  Boolean          @default(false)
+  disabledAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model BookCredentials {
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  bookId    String   @id
+  isPrivate Boolean  @default(true)
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BookInfo {
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  bookId    String   @id
+  date      String
+  title     String
+  fromto    String
+  lang      Language
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BookContent {
+  id        String          @id @default(uuid())
+  book      Book            @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  bookId    String
+  title     String?
+  subtitle  String?
+  img       String?
+  p         BookParagraph[]
+  order     Int
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model BookParagraph {
+  id            String      @id @default(uuid())
+  bookContent   BookContent @relation(fields: [bookContentId], references: [id], onDelete: Cascade)
+  bookContentId String
+  p             String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+enum Language {
+  en
+  ar
+  fr
+}
