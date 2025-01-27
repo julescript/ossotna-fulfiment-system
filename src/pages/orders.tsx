@@ -1,373 +1,188 @@
-// pages/orders?.js
 import React, { useEffect, useState } from "react";
-import { ToastContainer } from "react-toastify";
-import { toast } from "react-toastify";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-// Utility functions
-const getDefaultSubdomain = (order) => {
-  const storyUrlMetafield = order.metafields?.find(
-    (mf) => mf.namespace === "custom" && mf.key === "story-url"
-  );
-  return storyUrlMetafield ? storyUrlMetafield.value : "";
-};
+// Custom hook for fetching orders:
+import { useOrders } from "../hooks/useOrders";
 
-const getOrderURL = (order) => {
-  const properties = order.line_items[0].properties;
-  const customURL = properties.find((p) => p.name === "custom URL");
-  if (customURL) return customURL.value;
+// Utility functions:
+import { getDefaultSubdomain, getOrderURL } from "../utils/orderUtils";
 
-  const milestoneDate = properties.find((p) => p.name === "milestone date");
-  if (milestoneDate) return milestoneDate.value.replace(/\//g, "");
+// Service functions:
+import {
+  saveSubdomainAPI,
+  generateQRCodeAPI,
+  processAndUploadImagesAPI,
+  downloadImagesAsZipAPI,
+  saveMetafieldAPI,
+} from "../services/orderService";
 
-  return "";
-};
+const OrdersPage = () => {
+  // 1) State + custom hook usage
+  const { orders, limit, setLimit, isLoading, fetchOrders } = useOrders();
 
-const Orders = () => {
-  const [orders, setOrders] = useState([]);
-  const [limit, setLimit] = useState(10); // Default limit to 10
-  const [isLoading, setIsLoading] = useState(false);
-  const [loading, setLoading] = useState(false); // Global loading state
+  // For subdomain inputs
+  const [subdomains, setSubdomains] = useState({});
 
-  const [loadingOrders, setLoadingOrders] = useState({}); // Track loading state for each order
-  const [loadingOrders2, setLoadingOrders2] = useState({}); // Track loading state for each order
+  // For toggling row expansions
   const [toggledRows, setToggledRows] = useState({});
-  const [subdomains, setSubdomains] = useState({}); // Track subdomains input for each order
-  const [saving, setSaving] = useState({}); // Track save button loading state
 
-  const saveSubdomain = async (orderId, subdomain) => {
-    setLoading(true); // Start loading
-    setSaving((prev) => ({ ...prev, [orderId]: true }));
+  // For tracking loading states on a per-order basis
+  const [loadingOrders, setLoadingOrders] = useState({});
+  const [loadingOrders2, setLoadingOrders2] = useState({});
 
-    try {
-      const response = await fetch("/api/save-metafield", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId,
-          metafield: {
-            namespace: "custom",
-            key: "story-url",
-            type: "single_line_text_field",
-            value: subdomain,
-          },
-        }),
-      });
+  // Track per-order progress for uploading
+  const [uploadProgress, setUploadProgress] = useState({});
+  // Track per-order progress for downloading
+  const [downloadProgress, setDownloadProgress] = useState({});
 
-      if (!response.ok) {
-        throw new Error("Failed to save subdomain");
-      }
-
-      setSubdomains((prev) => ({
-        ...prev,
-        [orderId]: subdomain,
-      }));
-
-      toast.success("Subdomain saved successfully!", {
-        position: "top-right",
-        autoClose: 2000,
-      });
-
-      // Refresh the orders after saving
-      fetchOrders(limit);
-    } catch (error) {
-      console.error("Error saving subdomain:", error.message);
-      toast.error("Failed to save subdomain!", {
-        position: "top-right",
-        autoClose: 2000,
-      });
-    } finally {
-      setSaving((prev) => ({ ...prev, [orderId]: false }));
-      setLoading(false); // Stop loading
-    }
-  };
-
+  // 2) Populate initial subdomains each time orders change
   useEffect(() => {
-    const initialSubdomains = {};
-    orders?.forEach((order) => {
-      initialSubdomains[order.id] = getDefaultSubdomain(order);
+    const initial = {};
+    orders.forEach((order) => {
+      initial[order.id] = getDefaultSubdomain(order);
     });
-    setSubdomains(initialSubdomains);
+    setSubdomains(initial);
   }, [orders]);
 
-  // Toggle the view for a specific row
+  // 3) Handlers
+
+  // Toggle row to show/hide full properties
   const handleRowClick = (orderId) => {
     setToggledRows((prev) => ({
       ...prev,
-      [orderId]: !prev[orderId], // Toggle the state
+      [orderId]: !prev[orderId],
     }));
   };
 
-  const generateQRCode = async (subdomain) => {
+  // Save a subdomain to the metafield
+  const handleSaveSubdomain = async (orderId, subdomain) => {
     try {
-      const response = await fetch("/api/generate-qr", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ subdomain }),
-      });
+      await saveSubdomainAPI(orderId, subdomain);
+      toast.success("Subdomain saved successfully!", { autoClose: 2000 });
+      // Refresh orders to load the updated metafield
+      fetchOrders(limit);
+    } catch (error) {
+      console.error("Error saving subdomain:", error);
+      toast.error("Failed to save subdomain!", { autoClose: 2000 });
+    }
+  };
 
-      if (!response.ok) {
-        throw new Error("Failed to generate QR code");
-      }
-
-      const svgData = await response.text();
-
-      // Example: Display the SVG in the browser
+  // Generate and download a QR code (SVG)
+  const handleGenerateQRCode = async (subdomain) => {
+    try {
+      const svgData = await generateQRCodeAPI(subdomain);
       const svgBlob = new Blob([svgData], { type: "image/svg+xml" });
       const svgUrl = URL.createObjectURL(svgBlob);
 
+      // Force download in browser
       const link = document.createElement("a");
       link.href = svgUrl;
       link.download = `${subdomain}.svg`;
       link.click();
     } catch (error) {
-      console.error("Error generating QR code:", error.message);
+      console.error("Error generating QR code:", error);
+      toast.error("Failed to generate QR code!", { autoClose: 2000 });
     }
   };
 
-  const handleCopyPasswordAndOpenSubdomain = (order) => {
-    // Fetch the password from product properties
-    const passwordProperty = order.line_items[0].properties.find(
-      (prop) => prop.name.toLowerCase() === "password"
-    );
-
-    // Fetch the subdomain from the metafield
-    const storyUrlMetafield = order.metafields?.find(
-      (mf) => mf.namespace === "custom" && mf.key === "story-url"
-    );
-
-    // Copy password if available
-    if (passwordProperty?.value) {
-      navigator.clipboard.writeText(passwordProperty.value).then(
-        () => {
-          toast.success("Password copied to clipboard!", {
-            position: "top-right",
-            autoClose: 2000,
-          });
-        },
-        (err) => {
-          toast.error("Failed to copy password!", {
-            position: "top-right",
-            autoClose: 2000,
-          });
-          console.error("Failed to copy text:", err);
-        }
-      );
-    } else {
-      toast.warn("No password available to copy.", {
-        position: "top-right",
-        autoClose: 2000,
-      });
-    }
-
-    // Open story subdomain in a new tab if available
-    if (storyUrlMetafield?.value) {
-      const url = `https://${storyUrlMetafield.value}.ossotna.com`;
-      window.open(url, "_blank", "noopener,noreferrer");
-    } else {
-      toast.warn("No story URL available to open.", {
-        position: "top-right",
-        autoClose: 2000,
-      });
-    }
-  };
-
+  // Process images on server & upload them to Cloudinary, then save to metafield
   const handleProcessAndUploadImages = async (order) => {
-    setLoading(true); // Start loading
-    setLoadingOrders((prev) => ({ ...prev, [order.id]: true })); // Set loading for this order
-
-    const folderName = order.name;
-    const imageUrls = order.line_items[0].properties
-      .filter(
-        (prop) =>
-          prop.value.startsWith("https://") && prop.name !== "_original_view_2"
-      )
-      .map((prop) => prop.value);
-
-    if (imageUrls.length === 0) {
-      toast.warn("No images found in the properties.", {
-        position: "top-right",
-        autoClose: 2000,
-      });
-      setLoadingOrders((prev) => ({ ...prev, [order.id]: false })); // Reset loading state
-      return;
-    }
-
+    setLoadingOrders((prev) => ({ ...prev, [order.id]: true }));
     try {
-      const processedImages = [];
+      const folderName = order.name;
+      const imageUrls = order.line_items[0].properties
+        .filter((prop) => prop.value.startsWith("https://") && prop.name !== "_original_view_2")
+        .map((prop) => prop.value);
 
-      // Send the images to the /api/process-images endpoint for processing
-      const processResponse = await fetch("/api/process-images-upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderName, imageUrls }),
-      });
-
-      if (!processResponse.ok) {
-        throw new Error("Failed to process images.");
+      if (imageUrls.length === 0) {
+        toast.warn("No images found in the properties.", { autoClose: 2000 });
+        return;
       }
 
-      const { resizedImages } = await processResponse.json();
-
-      // Upload the processed images to Cloudinary
-      for (const { filename, resizedBuffer } of resizedImages) {
-        const blob = new Blob(
-          [Uint8Array.from(atob(resizedBuffer), (c) => c.charCodeAt(0))],
-          { type: "image/jpeg" }
-        );
-
-        const signatureResponse = await fetch("/api/cloudinary-sign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ folder: folderName }),
-        });
-
-        if (!signatureResponse.ok) {
-          throw new Error("Failed to get Cloudinary signature.");
-        }
-
-        const { timestamp, signature, api_key } = await signatureResponse.json();
-
-        const formData = new FormData();
-        formData.append("file", blob, filename);
-        formData.append("timestamp", timestamp);
-        formData.append("signature", signature);
-        formData.append("api_key", api_key);
-        formData.append("folder", folderName);
-
-        const uploadResponse = await fetch(
-          "https://api.cloudinary.com/v1_1/ossotna/upload",
-          {
-            method: "POST",
-            body: formData,
-          }
-        );
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload image to Cloudinary.");
-        }
-
-        const uploadData = await uploadResponse.json();
-        processedImages.push({
-          name: filename,
-          url: uploadData.secure_url,
-        });
-      }
-
-      const photoUrls = processedImages.map((image) => image.url);
-      const saveResponse = await fetch("/api/save-metafield", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: order.id,
-          metafield: {
-            namespace: "custom",
-            key: "story-photos",
-            type: "json",
-            value: JSON.stringify(photoUrls),
-          },
-        }),
+      // 1) Process + upload to Cloudinary
+      const processedImages = await processAndUploadImagesAPI({
+        orderId: order.id,
+        folderName,
+        imageUrls,
       });
 
-      if (!saveResponse.ok) {
-        throw new Error("Failed to save image URLs to metafield.");
-      }
+      // 2) Save the final URLs to a "story-photos" metafield
+      const photoUrls = processedImages.map((img) => img.url);
+      await saveMetafieldAPI(order.id, "story-photos", "json", JSON.stringify(photoUrls));
 
-      console.log("Uploaded Processed Images:", processedImages);
-
-      toast.success(`Images processed and uploaded successfully for ${folderName}!`, {
-        position: "top-right",
-        autoClose: 2000,
-      });
-
-      // Refresh the orders after updating metafields
+      toast.success(`Images processed and uploaded for ${folderName}!`, { autoClose: 2000 });
+      // Optionally refetch orders to get the new metafields
       fetchOrders(limit);
     } catch (error) {
-      console.error("Error uploading images:", error.message);
-      toast.error("Failed to process and upload images!", {
-        position: "top-right",
-        autoClose: 2000,
-      });
+      console.error("Error uploading images:", error);
+      toast.error("Failed to process and upload images!", { autoClose: 2000 });
     } finally {
       setLoadingOrders((prev) => ({ ...prev, [order.id]: false }));
-      setLoading(false); // Stop loading
     }
   };
 
-  // Handle download action for all images in a zip file
+  // Download images as a ZIP file
   const handleDownloadImagesAsZip = async (order) => {
-    setLoadingOrders2((prev) => ({ ...prev, [order.id]: true })); // Set loading for this order
-    const folderName = order.name;
-    const imageUrls = order.line_items[0].properties
-      .filter((prop) => prop.value.startsWith("https://") && prop.name !== "_original_view_2") // Exclude _original_view_2
-      .map((prop) => prop.value);
-
-    if (imageUrls.length === 0) {
-      toast.warn("No valid images found in the properties.", {
-        position: "top-right",
-        autoClose: 2000,
-      });
-      setLoadingOrders2((prev) => ({ ...prev, [order.id]: false })); // Reset loading state
-      return;
-    }
-
+    setLoadingOrders2((prev) => ({ ...prev, [order.id]: true }));
     try {
-      const response = await fetch("/api/process-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderName: folderName, imageUrls }),
-      });
+      const folderName = order.name;
+      const imageUrls = order.line_items[0].properties
+        .filter((prop) => prop.value.startsWith("https://") && prop.name !== "_original_view_2")
+        .map((prop) => prop.value);
 
-      if (!response.ok) {
-        throw new Error("Failed to process images.");
+      if (imageUrls.length === 0) {
+        toast.warn("No valid images found in the properties.", { autoClose: 2000 });
+        return;
       }
 
-      const blob = await response.blob();
+      // 1) Request a Blob of zipped/processed images
+      const zipBlob = await downloadImagesAsZipAPI(folderName, imageUrls);
+
+      // 2) Trigger browser download
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
+      link.href = URL.createObjectURL(zipBlob);
       link.download = `${folderName}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      toast.success(`All images processed and downloaded as ${folderName}.zip`, {
-        position: "top-right",
-        autoClose: 2000,
-      });
+      toast.success(`All images processed & downloaded as ${folderName}.zip`, { autoClose: 2000 });
     } catch (error) {
-      console.error("Error processing images:", error.message);
-      toast.error("Failed to process images!", {
-        position: "top-right",
-        autoClose: 2000,
-      });
+      console.error("Error processing images:", error);
+      toast.error("Failed to process images!", { autoClose: 2000 });
     } finally {
-      setLoadingOrders2((prev) => ({ ...prev, [order.id]: false })); // Reset loading state
+      setLoadingOrders2((prev) => ({ ...prev, [order.id]: false }));
     }
   };
-  const handleCopyProperties = (order, properties) => {
+
+  // Copy properties to clipboard, substituting `story-photos` if needed
+  const handleCopyProperties = (order) => {
     const storyId = subdomains[order.id] || "No story-id available";
 
-    // Filter out unwanted properties
-    const filteredProperties = properties.filter(
+    // Filter out certain properties
+    const filteredProperties = order.line_items[0].properties.filter(
       (prop) =>
-        !["_cl_options", "_cl_options_id", "_cl_options_price", "_original_view_2"].includes(prop.name)
+        !["_cl_options", "_cl_options_id", "_cl_options_price", "_original_view_2"].includes(
+          prop.name
+        )
     );
 
-    // Replace photo URLs with metafield URLs if available
+    // Replace with story photos from metafield if needed
     const storyPhotosMetafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-photos"
     );
-
     if (storyPhotosMetafield) {
-      const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value); // Parse the JSON metafield value
-
+      const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value);
+      // Example logic: If property name indicates an image slot, swap with the processed link
       filteredProperties.forEach((prop) => {
-        // Match `photos_<number>` or `chapter_<number>_photo` and extract the number
+        // e.g., "photos_1", "photos_2", or "chapter_3_photo"
         const match = prop.name.match(/(?:photos|chapter_(\d+)_photo)/);
         if (match) {
-          const index = match[1] ? parseInt(match[1], 10) - 1 : parseInt(match[0].split('_')[1], 10) - 1;
+          // If "chapter_3_photo", match[1] => "3"; if "photos_1", no capturing group => might adapt the code
+          const index = match[1]
+            ? parseInt(match[1], 10) - 1
+            : parseInt(prop.name.split("_")[1], 10) - 1;
           if (storyPhotoUrls[index]) {
             prop.value = storyPhotoUrls[index];
           }
@@ -375,52 +190,90 @@ const Orders = () => {
       });
     }
 
-    // Construct text to copy
+    // Build a final text string
     const textToCopy =
-      `Order ID: ${order.name}\n` + // Add the order name
+      `Order ID: ${order.name}\n` +
       `Story ID: ${storyId}\n` +
-      filteredProperties
-        .map((prop) => `${prop.name}: ${prop.value}`)
-        .join("\n");
+      filteredProperties.map((prop) => `${prop.name}: ${prop.value}`).join("\n");
 
-    // Copy text to clipboard
     navigator.clipboard.writeText(textToCopy).then(
-      () => {
-        toast.success(`${order.name} properties copied`, {
-          position: "top-right",
-          autoClose: 2000,
-        });
-      },
+      () => toast.success(`${order.name} properties copied`, { autoClose: 2000 }),
       (err) => {
-        toast.error("Failed to copy properties!", {
-          position: "top-right",
-          autoClose: 2000,
-        });
+        toast.error("Failed to copy properties!", { autoClose: 2000 });
         console.error("Failed to copy text:", err);
       }
     );
   };
 
-  const fetchOrders = (limitValue) => {
-    setIsLoading(true);
-    fetch(`api/shopify/orders?limit=${limitValue}`)
-      .then((res) => res.json())
-      .then((res) => {
-        setOrders(res);
-      })
-      .catch((err) => console.error("Error fetching orders:", err))
-      .finally(() => setIsLoading(false));
+  // Copy password and open the subdomain in a new tab
+  const handleCopyPasswordAndOpenSubdomain = (order) => {
+    // 1) Copy password
+    const passwordProperty = order.line_items[0].properties.find(
+      (prop) => prop.name.toLowerCase() === "password"
+    );
+
+    if (passwordProperty?.value) {
+      navigator.clipboard.writeText(passwordProperty.value).then(
+        () => toast.success("Password copied to clipboard!", { autoClose: 2000 }),
+        (err) => toast.error("Failed to copy password!", { autoClose: 2000 })
+      );
+    } else {
+      toast.warn("No password available to copy.", { autoClose: 2000 });
+    }
+
+    // 2) Open the subdomain
+    const storyUrlMetafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-url"
+    );
+    if (storyUrlMetafield?.value) {
+      const url = `https://${storyUrlMetafield.value}.ossotna.com`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      toast.warn("No story URL available to open.", { autoClose: 2000 });
+    }
   };
 
-  useEffect(() => {
-    fetchOrders(limit); // Fetch orders on initial load
-  }, [limit]);
+  // **New** helper to copy story-photos JSON if it exists
+  const handleCopyStoryPhotosJSON = (order) => {
+    const storyPhotosMetafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+    );
 
+    if (!storyPhotosMetafield) {
+      toast.warn("No story-photos metafield to copy.", { autoClose: 2000 });
+      return;
+    }
+
+    try {
+      // Pretty-print JSON with 2 spaces indentation
+      const formattedJSON = JSON.stringify(
+        JSON.parse(storyPhotosMetafield.value),
+        null,
+        2
+      );
+
+      navigator.clipboard.writeText(formattedJSON).then(
+        () => {
+          toast.success("Copied story-photos JSON to clipboard!", { autoClose: 2000 });
+        },
+        (err) => {
+          toast.error("Failed to copy JSON!", { autoClose: 2000 });
+          console.error("Failed to copy JSON:", err);
+        }
+      );
+    } catch (error) {
+      console.error("Error parsing story-photos JSON:", error);
+      toast.error("Invalid story-photos JSON format!", { autoClose: 2000 });
+    }
+  };
+
+  // Limit change handler
   const handleLimitChange = (e) => {
     const newLimit = parseInt(e.target.value, 10);
     setLimit(newLimit > 250 ? 250 : newLimit); // Shopify max limit is 250
   };
 
+  // 4) Render
   return (
     <div className="p-8 bg-gray-900 min-h-screen relative">
       <h1 className="text-2xl font-bold mb-8 text-white">Ossotna Shopify Orders</h1>
@@ -444,16 +297,13 @@ const Orders = () => {
         </select>
       </div>
 
-      <div
-        className={`h-full w-full ${isLoading ? "pointer-events-none opacity-50" : ""
-          }`}
-      >
+      {/* Main table container */}
+      <div className={`h-full w-full ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
         <div className="h-full w-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
           <div className="w-full h-full">
             <div className="h-full w-full bg-white dark:bg-gray-800 shadow-md rounded-md overflow-hidden">
               {/* Table Header */}
               <div className="grid grid-cols-12 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold border-b border-gray-300 dark:border-gray-600">
-                {/* <div className="col-span-1 p-4">Order</div> */}
                 <div className="col-span-2 p-4">Order</div>
                 <div className="col-span-2 p-4">Subdomain</div>
                 <div className="col-span-6 p-4">Product Properties</div>
@@ -462,190 +312,168 @@ const Orders = () => {
 
               {/* Table Body */}
               <div className="overflow-y-auto h-[calc(100%-3rem)]">
-                {orders ? orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  // onClick={() => handleRowClick(order.id)} // Handle row click
-                  >
-                    {/* <div className="col-span-1 p-4 text-gray-800 dark:text-gray-300 font-bold">
-                        {order.name}
-                      </div> */}
-                    {/* <div className="col-span-1 p-4 text-gray-800 dark:text-gray-300">
-                        {order?.shipping_address?.phone || "N/A"}
-                      </div> */}
-                    <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
-                      <b>{order.name}</b>
-                      <br />
-                      {order?.shipping_address?.first_name}{" "}
-                      {order?.shipping_address?.last_name}
-                      <br />
-                      <a
-                        href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 underline"
-                      >
-                        {order?.shipping_address?.phone || "N/A"}
-                      </a>
-                      <br />
-                      <a
-                        href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
-                          `Hello ${order?.shipping_address?.first_name}`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
-                      >
-                       <span className="material-symbols-outlined">waving_hand</span>
-                      </a>
-                      <a
-                        href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
-                          `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
-                      >
-                       <span className="material-symbols-outlined">volunteer_activism</span>
-                      </a>
-                      {/* Story Draft Link */}
-                      {order.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-url") && (
+                {orders.map((order) => {
+                  const subdomainValue = subdomains[order.id] || "";
+
+                  return (
+                    <div
+                      key={order.id}
+                      className="grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      {/* Column 1: Order Info */}
+                      {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
+                      <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                        <b>{order.name}</b>
+                        <br />
+                        {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
+                        <br />
+                        {/* Show phone or "N/A" */}
+                        <a
+                          href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 underline"
+                        >
+                          {order?.shipping_address?.phone || "N/A"}
+                        </a>
+                        <br />
+
+                        {/* 1) Quick Hello Button */}
                         <a
                           href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
-                            `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${order.metafields.find(
-                              (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                            ).value}.ossotna.com/\n${order.line_items[0].properties.find((prop) => prop.name === "password")
-                              ? `password: ${order.line_items[0].properties.find((prop) => prop.name === "password").value}`
-                              : ""
-                            }\n\nHope you like it as much as we do!`
+                            `Hello ${order?.shipping_address?.first_name}`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
+                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
                         >
-                          <span className="material-symbols-outlined">Draft</span>
+                          <span className="material-symbols-outlined">waving_hand</span>
                         </a>
-                      )}
-                    </div>
 
-                    {/* Subdomain Column */}
-                    <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
-                      <label
-                        htmlFor={`subdomain-${order.id}`}
-                        className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
-                      >
-                        Subdomain URL
-                      </label>
-                      <input
-                        type="text"
-                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${subdomains[order.id] &&
-                          subdomains[order.id] === getDefaultSubdomain(order)
-                          ? "border-green-500 text-green-500"
-                          : "border-gray-300"
-                          }`}
-                        value={subdomains[order.id] ? subdomains[order.id] : ""}
-                        onChange={(e) =>
-                          setSubdomains((prev) => ({
-                            ...prev,
-                            [order.id]: e.target.value,
-                          }))
-                        }
-                      />
-
-                      {/* Subdomain Actions */}
-                      <div className="flex items-start justify-start gap-2 mt-2">
-                        {/* Save Button */}
-                        <button
-                          className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomains[order.id] &&
-                            subdomains[order.id] === getDefaultSubdomain(order)
-                            ? "bg-gray-500 cursor-not-allowed opacity-50"
-                            : "bg-blue-500 hover:bg-blue-600"
-                            }`}
-                          onClick={() =>
-                            saveSubdomain(order.id, subdomains[order.id] || getDefaultSubdomain(order))
-                          }
-                          disabled={
-                            subdomains[order.id] &&
-                            subdomains[order.id] === getDefaultSubdomain(order)
-                          }
+                        {/* 2) Thank You / Intro Message Button */}
+                        <a
+                          href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                            `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
                         >
-                          <span className="material-symbols-outlined">
-                            save
-                          </span>
-                        </button>
+                          <span className="material-symbols-outlined">volunteer_activism</span>
+                        </a>
 
-                        {/* Fill Button */}
-                        <button
-                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
-                          onClick={() => {
-                            const orderURL = getOrderURL(order);
-                            const randomDigits = Math.floor(10000 + Math.random() * 90000); // Generate 5 random digits
-                            const subdomain = orderURL === "" ? `book-${randomDigits}` : orderURL;
+                        {/* 3) Draft Link Button (only if "story-url" metafield exists) */}
+                        {order.metafields?.some(
+                          (mf) => mf.namespace === "custom" && mf.key === "story-url"
+                        ) && (
+                            <a
+                              href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                                `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${order.metafields.find(
+                                  (mf) => mf.namespace === "custom" && mf.key === "story-url"
+                                ).value
+                                }.ossotna.com/\n${order.line_items[0].properties.find((prop) => prop.name === "password")
+                                  ? `password: ${order.line_items[0].properties.find((prop) => prop.name === "password").value
+                                  }`
+                                  : ""
+                                }\n\nHope you like it as much as we do!`
+                              )}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
+                            >
+                              <span className="material-symbols-outlined">Draft</span>
+                            </a>
+                          )}
+                      </div>
 
+                      {/* Column 2: Subdomain Input & Actions */}
+                      <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                        <label
+                          htmlFor={`subdomain-${order.id}`}
+                          className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                        >
+                          Subdomain URL
+                        </label>
+                        <input
+                          type="text"
+                          id={`subdomain-${order.id}`}
+                          className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${subdomainValue === getDefaultSubdomain(order)
+                            ? "border-green-500 text-green-500"
+                            : "border-gray-300"
+                            }`}
+                          value={subdomainValue}
+                          onChange={(e) =>
                             setSubdomains((prev) => ({
                               ...prev,
-                              [order.id]: subdomain,
-                            }));
-                          }}
-                        >
-                          <span className="material-symbols-outlined">
-                            auto_fix_high
-                          </span>
-                        </button>
+                              [order.id]: e.target.value,
+                            }))
+                          }
+                        />
 
-                        {/* QR Button */}
-                        <button
-                          className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomains[order.id]
-                            ? "bg-gray-700 hover:bg-gray-900"
-                            : "bg-gray-500 cursor-not-allowed opacity-50"
-                            }`}
-                          onClick={() => {
-                            generateQRCode(subdomains[order.id]);
-                          }}
-                          disabled={!subdomains[order.id]}
-                        >
-                          <span className="material-symbols-outlined">
-                            qr_code
-                          </span>
-                        </button>
+                        {/* Subdomain Buttons */}
+                        <div className="flex items-start justify-start gap-2 mt-2">
+                          {/* Save Subdomain */}
+                          <button
+                            className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomainValue === getDefaultSubdomain(order)
+                              ? "bg-gray-500 cursor-not-allowed opacity-50"
+                              : "bg-blue-500 hover:bg-blue-600"
+                              }`}
+                            onClick={() =>
+                              handleSaveSubdomain(order.id, subdomainValue)
+                            }
+                            disabled={subdomainValue === getDefaultSubdomain(order)}
+                          >
+                            <span className="material-symbols-outlined">save</span>
+                          </button>
+
+                          {/* Auto-Fill Subdomain */}
+                          <button
+                            className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
+                            onClick={() => {
+                              const customURL = getOrderURL(order);
+                              const randomDigits = Math.floor(10000 + Math.random() * 90000);
+                              const fallback = `book-${randomDigits}`;
+                              setSubdomains((prev) => ({
+                                ...prev,
+                                [order.id]: customURL || fallback,
+                              }));
+                            }}
+                          >
+                            <span className="material-symbols-outlined">
+                              auto_fix_high
+                            </span>
+                          </button>
+
+                          {/* Generate QR Code */}
+                          <button
+                            className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomainValue
+                              ? "bg-gray-700 hover:bg-gray-900"
+                              : "bg-gray-500 cursor-not-allowed opacity-50"
+                              }`}
+                            onClick={() => handleGenerateQRCode(subdomainValue)}
+                            disabled={!subdomainValue}
+                          >
+                            <span className="material-symbols-outlined">
+                              qr_code
+                            </span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="col-span-6 p-4 text-gray-800 dark:text-gray-300">
-                      <b>{getOrderURL(order) ? `${getOrderURL(order)}.ossotna.com` : "Auto Generated"}</b>
-                      <br />
-                      {toggledRows[order.id] ? ( // Check toggled state
-                        order.line_items[0].properties.map((prop) => (
-                          <div key={prop.name}>
-                            <b>{prop.name}:</b>
-                            <br />
-                            {/^https?:\/\/\S+/.test(prop.value) ? ( // Check if value is a URL
-                              <a
-                                href={prop.value}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 underline"
-                              >
-                                {prop.value}
-                              </a>
-                            ) : (
-                              prop.value
-                            )}
-                            <hr className="mt-4 mb-4 opacity-25" />
-                          </div>
-                        ))
-                      ) : (
-                        order.line_items[0].properties
-                          .filter(
-                            (p) =>
-                              p.name === "title" ||
-                              p.name === "dedication_line" ||
-                              p.name === "dedication_line"
-                          )
-                          .map((prop) => (
+                      {/* Column 3: Product Properties (expandable) */}
+                      <div className="col-span-6 p-4 text-gray-800 dark:text-gray-300">
+                        <b>
+                          {getOrderURL(order)
+                            ? `${getOrderURL(order)}.ossotna.com`
+                            : "Auto Generated"}
+                        </b>
+                        <br />
+                        {toggledRows[order.id] ? (
+                          order.line_items[0].properties.map((prop) => (
                             <div key={prop.name}>
-                              {/^https?:\/\/\S+/.test(prop.value) ? ( // Check if value is a URL
+                              <b>{prop.name}:</b>
+                              <br />
+                              {/^https?:\/\/\S+/.test(prop.value) ? (
                                 <a
                                   href={prop.value}
                                   target="_blank"
@@ -657,145 +485,150 @@ const Orders = () => {
                               ) : (
                                 prop.value
                               )}
+                              <hr className="mt-4 mb-4 opacity-25" />
                             </div>
                           ))
-                      )}
-                    </div>
-                    <div className="col-span-2 p-4 text-center flex items-start justify-end gap-2">
-                      {/* Copy Properties Button */}
-                      <button
-                        className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyProperties(order, order.line_items[0].properties);
-                        }}
-                        disabled={!order.metafields?.some(
-                          (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                        )}
-                      >
-                        <span className="material-symbols-outlined">content_copy</span>
-                      </button>
-
-                      {/* Download Images Button */}
-                      <button
-                        className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[order.id]
-                          ? "text-gray-500 cursor-not-allowed"
-                          : "text-blue-500 hover:text-blue-600"
-                          } transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadImagesAsZip(order);
-                        }}
-                        disabled={loadingOrders2[order.id]}
-                      >
-                        {loadingOrders2[order.id] ?
-                          <span className="material-symbols-outlined">downloading</span>
-                          :
-                          <span className="material-symbols-outlined">download</span>
-                        }
-                      </button>
-
-                      {/* Upload Images Button */}
-                      <button
-                        className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders[order.id] ? "text-gray-500 cursor-not-allowed" : "text-green-500 hover:text-green-600"
-                          } transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleProcessAndUploadImages(order);
-                        }}
-                        disabled={loadingOrders[order.id]}
-                      >
-                        {loadingOrders[order.id] ? (
-                          <span className="material-symbols-outlined">arrow_upload_progress</span>
                         ) : (
-                          <span className="material-symbols-outlined">cloud_upload</span>
+                          order.line_items[0].properties
+                            .filter((p) => ["title", "dedication_line"].includes(p.name))
+                            .map((prop) => (
+                              <div key={prop.name}>
+                                {/^https?:\/\/\S+/.test(prop.value) ? (
+                                  <a
+                                    href={prop.value}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-500 underline"
+                                  >
+                                    {prop.value}
+                                  </a>
+                                ) : (
+                                  prop.value
+                                )}
+                              </div>
+                            ))
                         )}
+                      </div>
 
-                        {/* Progress Bar */}
-                        <span
-                          className="absolute bottom-0 left-0 h-1 bg-green-500"
-                          style={{
-                            width: `${loadingOrders[`progress_${order.id}`] || 0}%`,
+                      {/* Column 4: Action buttons */}
+                      <div className="col-span-2 p-4 text-center flex items-start justify-end gap-2">
+                        {/* Copy Properties */}
+                        <button
+                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyProperties(order);
                           }}
-                        />
-                      </button>
+                        >
+                          <span className="material-symbols-outlined">
+                            content_copy
+                          </span>
+                        </button>
 
-                      {/* copy Images Button */}
-                      <button
-                        className={`p-1 pt-2 pr-2 pl-2 ${order.metafields?.some(
-                          (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                        )
-                          ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
-                          : "bg-gray-700 text-gray-500 opacity-50"
-                          } transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const storyPhotosMetafield = order.metafields?.find(
+                        {/* Download images as ZIP */}
+                        <button
+                          className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[order.id]
+                              ? "text-gray-500 cursor-not-allowed"
+                              : "text-blue-500 hover:text-blue-600"
+                            } transition`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadImagesAsZip(order);
+                          }}
+                          disabled={loadingOrders2[order.id]}
+                        >
+                          {loadingOrders2[order.id] ? (
+                            <span className="material-symbols-outlined">downloading</span>
+                          ) : (
+                            <span className="material-symbols-outlined">download</span>
+                          )}
+                        </button>
+
+                        {/* Mini download progress text */}
+                        {downloadProgress[order.id] && (
+                          <div className="mt-1 text-xs text-white">
+                            Downloading {downloadProgress[order.id].current} / {downloadProgress[order.id].total}
+                          </div>
+                        )}
+
+                        {/* Process & Upload images */}
+                        <button
+                          className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders[order.id]
+                              ? "text-gray-500 cursor-not-allowed"
+                              : "text-green-500 hover:text-green-600"
+                            } transition`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleProcessAndUploadImages(order);
+                          }}
+                          disabled={loadingOrders[order.id]}
+                        >
+                          {loadingOrders[order.id] ? (
+                            <span className="material-symbols-outlined">
+                              arrow_upload_progress
+                            </span>
+                          ) : (
+                            <span className="material-symbols-outlined">cloud_upload</span>
+                          )}
+                        </button>
+
+                        {/* Mini upload progress text */}
+                        {uploadProgress[order.id] && (
+                          <div className="mt-1 text-xs text-white">
+                            Uploading {uploadProgress[order.id].current} / {uploadProgress[order.id].total}
+                          </div>
+                        )}
+
+                        {/* Copy Images JSON Button */}
+                        <button
+                          className={`p-1 pt-2 pr-2 pl-2 ${order.metafields?.some(
                             (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                          );
-                          if (storyPhotosMetafield) {
-                            const formattedJSON = JSON.stringify(
-                              JSON.parse(storyPhotosMetafield.value),
-                              null,
-                              2
-                            ); // Format JSON with 2 spaces indentation
-
-                            navigator.clipboard.writeText(formattedJSON).then(
-                              () => {
-                                toast.success("Copied story-photos JSON to clipboard!", {
-                                  position: "top-right",
-                                  autoClose: 2000,
-                                });
-                              },
-                              (err) => {
-                                toast.error("Failed to copy JSON!", {
-                                  position: "top-right",
-                                  autoClose: 2000,
-                                });
-                                console.error("Failed to copy JSON:", err);
-                              }
-                            );
+                          )
+                            ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
+                            : "bg-gray-700 text-gray-500 opacity-50"
+                            } transition`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyStoryPhotosJSON(order);
+                          }}
+                          disabled={
+                            !order.metafields?.some(
+                              (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                            )
                           }
-                        }}
-                        disabled={!order.metafields?.some(
-                          (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                        )}
-                      >
-                        <span className="material-symbols-outlined">photo_library</span>
-                      </button>
+                        >
+                          <span className="material-symbols-outlined">photo_library</span>
+                        </button>
 
-                      {/* Copy Password & Open Subdomain Button */}
-                      <button
-                        className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyPasswordAndOpenSubdomain(order);
-                        }}
-                        disabled={!order.metafields?.some(
-                          (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                        )}
-                      >
-                        <span className="material-symbols-outlined">link</span>
-                      </button>
+                        {/* Copy Password & Open Subdomain */}
+                        <button
+                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyPasswordAndOpenSubdomain(order);
+                          }}
+                        >
+                          <span className="material-symbols-outlined">link</span>
+                        </button>
 
-                      {/* expand Button */}
-                      <button
-                        className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRowClick(order.id)
-                        }}
-                      >
-                        {toggledRows[order.id] ?
-                          <span className="material-symbols-outlined">arrow_upward</span>
-                          :
-                          <span className="material-symbols-outlined">arrow_downward</span>
-                        }
-                      </button>
-
+                        {/* Expand row */}
+                        <button
+                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRowClick(order.id);
+                          }}
+                        >
+                          {toggledRows[order.id] ? (
+                            <span className="material-symbols-outlined">arrow_upward</span>
+                          ) : (
+                            <span className="material-symbols-outlined">arrow_downward</span>
+                          )}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )) : null}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -807,4 +640,4 @@ const Orders = () => {
   );
 };
 
-export default Orders;
+export default OrdersPage;

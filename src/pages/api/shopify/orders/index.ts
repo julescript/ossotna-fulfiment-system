@@ -10,6 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const params = new URLSearchParams({
     limit: String(limit),
+    status: "open", // Explicitly fetch all orders, regardless of status
   });
 
   if (page_info) {
