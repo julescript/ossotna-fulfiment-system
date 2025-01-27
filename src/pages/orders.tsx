@@ -1,18 +1,31 @@
 // pages/orders?.js
 import React, { useEffect, useState } from "react";
-import OrdersTable from "../components/orders-table.component";
 import { ToastContainer } from "react-toastify";
-import JSZip from "jszip"; // For creating zip files
-import { saveAs } from "file-saver"; // For saving files locally
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCopy, faUpload, faDownload, faChevronDown } from "@fortawesome/free-solid-svg-icons";
 
+// Utility functions
+const getDefaultSubdomain = (order) => {
+  const storyUrlMetafield = order.metafields?.find(
+    (mf) => mf.namespace === "custom" && mf.key === "story-url"
+  );
+  return storyUrlMetafield ? storyUrlMetafield.value : "";
+};
+
+const getOrderURL = (order) => {
+  const properties = order.line_items[0].properties;
+  const customURL = properties.find((p) => p.name === "custom URL");
+  if (customURL) return customURL.value;
+
+  const milestoneDate = properties.find((p) => p.name === "milestone date");
+  if (milestoneDate) return milestoneDate.value.replace(/\//g, "");
+
+  return "";
+};
 
 const Orders = () => {
   const [orders, setOrders] = useState([]);
-  const [limit, setLimit] = useState(100); // Default limit to 10
+  const [limit, setLimit] = useState(10); // Default limit to 10
   const [isLoading, setIsLoading] = useState(false);
   const [loading, setLoading] = useState(false); // Global loading state
 
@@ -21,14 +34,6 @@ const Orders = () => {
   const [toggledRows, setToggledRows] = useState({});
   const [subdomains, setSubdomains] = useState({}); // Track subdomains input for each order
   const [saving, setSaving] = useState({}); // Track save button loading state
-
-  // Fetch the default subdomain value
-  const getDefaultSubdomain = (order) => {
-    const storyUrlMetafield = order.metafields?.find(
-      (mf) => mf.namespace === "custom" && mf.key === "story-url"
-    );
-    return storyUrlMetafield ? storyUrlMetafield.value : "";
-  };
 
   const saveSubdomain = async (orderId, subdomain) => {
     setLoading(true); // Start loading
@@ -92,40 +97,6 @@ const Orders = () => {
       [orderId]: !prev[orderId], // Toggle the state
     }));
   };
-
-  // Function to fetch image as a blob
-  const fetchImageAsBlob = async (url) => {
-    try {
-      // Use the proxy API to fetch the image
-      const response = await fetch(`/api/proxy-fetch?imageUrl=${encodeURIComponent(url)}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch image via proxy.");
-      }
-      return await response.blob();
-    } catch (error) {
-      console.error("Error fetching image:", error.message);
-      throw error;
-    }
-  };
-
-  const getOrderURL = (order) => {
-    const properties = order.line_items[0].properties;
-
-    // Check for custom URL
-    const customURL = properties.find((p) => p.name === "custom URL");
-    if (customURL) {
-      return customURL.value;
-    }
-
-    // Check for milestone date
-    const milestoneDate = properties.find((p) => p.name === "milestone date");
-    if (milestoneDate) {
-      return milestoneDate.value.replace(/\//g, ""); // Remove slashes
-    }
-
-    // Default to "Auto"
-    return "";
-  }
 
   const generateQRCode = async (subdomain) => {
     try {
@@ -428,16 +399,6 @@ const Orders = () => {
         console.error("Failed to copy text:", err);
       }
     );
-  };
-
-  // Utility function to validate URLs
-  const isValidUrl = (url) => {
-    try {
-      new URL(url);
-      return true;
-    } catch (e) {
-      return false;
-    }
   };
 
   const fetchOrders = (limitValue) => {
