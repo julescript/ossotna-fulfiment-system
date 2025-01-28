@@ -30,6 +30,7 @@ const OrdersPage = () => {
   const [dedicationLines, setDedicationLines] = useState({});
   const [storyTitles, setStoryTitles] = useState({});
   const [milestoneDates, setMilestoneDates] = useState({});
+  const [generatedQRCodes, setGeneratedQRCodes] = useState({});
 
   // For toggling row expansions
   const [toggledRows, setToggledRows] = useState({});
@@ -155,6 +156,57 @@ const OrdersPage = () => {
   };
 
   // Generate and download a QR code (SVG)
+  const createQR = async (subdomain) => {
+    try {
+      // Fetch the raw SVG data from the API
+      const rawSvg = await generateQRCodeAPI(subdomain);
+
+      // Process the SVG to remove unwanted elements and ensure scalability
+      const cleanedSvg = processQrCodeSvg(rawSvg);
+
+      if (!cleanedSvg) {
+        throw new Error("Processed SVG is empty.");
+      }
+      return cleanedSvg;
+    } catch (error) {
+      console.error("Error generating QR code:", error);
+      toast.error("Failed to generate QR code!", { autoClose: 2000 });
+    }
+  };
+
+  useEffect(() => {
+    const generateQRCodes = async () => {
+      if (!selectedOrder) return;
+      const subdomain = subdomains[selectedOrder.id];
+      if (!subdomain) return;
+  
+      try {
+        const rawSvg = await generateQRCodeAPI(subdomain);
+        const cleanedSvg = processQrCodeSvg(rawSvg);
+  
+        if (!cleanedSvg) {
+          throw new Error("Processed SVG is empty.");
+        }
+  
+        setGeneratedQRCodes((prev) => ({
+          ...prev,
+          [selectedOrder.id]: cleanedSvg,
+        }));
+      } catch (error) {
+        console.error("Error generating QR code:", error);
+        toast.error("Failed to generate QR code!", { autoClose: 2000 });
+        // Optionally, you can set a default SVG or remove the entry
+        setGeneratedQRCodes((prev) => ({
+          ...prev,
+          [selectedOrder.id]: "",
+        }));
+      }
+    };
+  
+    generateQRCodes();
+  }, [selectedOrder, subdomains]);
+
+    // Generate and download a QR code (SVG)
   const handleGenerateQRCode = async (subdomain) => {
     try {
       // Fetch the raw SVG data from the API
@@ -1219,6 +1271,7 @@ const OrdersPage = () => {
                       milestoneDate={milestoneDates[selectedOrder.id]}
                       title={storyTitles[selectedOrder.id]}
                       dedicationLine={dedicationLines[selectedOrder.id]}
+                      qr={generatedQRCodes[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
                     />
 

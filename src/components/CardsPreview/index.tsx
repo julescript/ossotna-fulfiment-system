@@ -8,6 +8,7 @@ const OneSVGWithTwoFrames = ({
     title = "A Special Title",
     dedicationLine = "With all my love",
     // Remove qrCodeSvg from props as we'll fetch it within the component
+    qr,
     subdomain = "example.ossotna.com",
 }) => {
     const svgRef = useRef(null);
@@ -23,20 +24,18 @@ const OneSVGWithTwoFrames = ({
             setIsLoading(true);
             setError(null);
             try {
-                const svg = await generateQRCodeAPI(subdomain);
-                const cleanedSvg = processQrCodeSvg(svg);
-                setQrCodeSvg(cleanedSvg);
+                setQrCodeSvg(qr);
             } catch (err) {
-                console.error("Error generating QR code:", err);
-                setError("Failed to generate QR code.");
-                toast.error("Failed to generate QR code.", { autoClose: 2000 });
+                console.error("Error parse QR code:", err);
+                setError("Failed to parse QR code.");
+                toast.error("Failed parsing QR code.", { autoClose: 2000 });
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchQRCode();
-    }, [subdomain]);
+    }, [qr]);
 
     const handleDownload = () => {
         if (!svgRef.current) return;
