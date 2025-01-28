@@ -1,5 +1,3 @@
-import { generateQRCodeAPI } from "@/services/orderService";
-import { processQrCodeSvg } from "@/utils/orderUtils";
 import React, { useRef, useState, useEffect } from "react";
 import { toast } from "react-toastify";
 
