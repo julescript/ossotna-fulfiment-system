@@ -35,6 +35,29 @@ export const saveSubdomainAPI = async (orderId, subdomain) => {
 };
 
 /**
+ * Save a subdomain metafield for a given order.
+ */
+export const saveStatusAPI = async (orderId, status) => {
+    const response = await fetch("/api/save-metafield", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            orderId,
+            metafield: {
+                namespace: "custom",
+                key: "story-status",
+                type: "single_line_text_field",
+                value: status,
+            },
+        }),
+    });
+    if (!response.ok) {
+        throw new Error("Failed to save subdomain");
+    }
+    return response;
+};
+
+/**
  * Generate a QR Code for a subdomain.
  */
 export const generateQRCodeAPI = async (subdomain) => {

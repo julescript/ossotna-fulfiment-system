@@ -15,6 +15,7 @@ import {
   processAndUploadImagesAPI,
   downloadImagesAsZipAPI,
   saveMetafieldAPI,
+  saveStatusAPI,
 } from "../services/orderService";
 import TwoFramesPreview from "@/components/CardsPreview";
 
@@ -41,6 +42,17 @@ const OrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // 1) Add storyStatuses state & statusOptions array
+  const [storyStatuses, setStoryStatuses] = useState({});
+  const statusOptions = [
+    "New Order",
+    "Story Draft",
+    "Story Live",
+    "Sent for Printing",
+    "QA Review",
+    "Ready for Delivery",
+  ];
+
 
   const subdomainValue = (order) => {
     return subdomains[order.id] || "";
@@ -58,11 +70,23 @@ const OrdersPage = () => {
 
   // 2) Populate initial subdomains each time orders change
   useEffect(() => {
-    const initial = {};
+    const statuses = {};
+    const subs = {};
+
     orders.forEach((order) => {
-      initial[order.id] = getDefaultSubdomain(order);
+      const storyStatusMetafield = order.metafields?.find(
+        (mf) => mf.namespace === "custom" && mf.key === "story-status"
+      );
+
+      // 1) For story status
+      statuses[order.id] = storyStatusMetafield?.value || "New Order";
+
+      // 2) For subdomain
+      subs[order.id] = getDefaultSubdomain(order);
     });
-    setSubdomains(initial);
+
+    setStoryStatuses(statuses);
+    setSubdomains(subs);
   }, [orders]);
 
   useEffect(() => {
@@ -74,6 +98,10 @@ const OrdersPage = () => {
       document.body.style.overflow = "";
     }
   }, [isModalOpen]);
+
+  useEffect(() => {
+    console.log(JSON.stringify(selectedOrder?.line_items, null, 2));
+  }, [selectedOrder]);
 
   // 3) Handlers
 
@@ -303,6 +331,20 @@ const OrdersPage = () => {
     setLimit(newLimit > 250 ? 250 : newLimit); // Shopify max limit is 250
   };
 
+  // 3) Handler to update the "story-status" metafield
+  const handleStoryStatusChange = async (orderId, newStatus) => {
+    // Update local state so the dropdown value changes immediately
+    setStoryStatuses((prev) => ({ ...prev, [orderId]: newStatus }));
+    try {
+      // Save to Shopify Metafield
+      await saveStatusAPI(orderId, newStatus)
+      toast.success("Story status updated successfully!", { autoClose: 2000 });
+    } catch (error) {
+      console.error("Error updating story status:", error);
+      toast.error("Failed to update story status!", { autoClose: 2000 });
+    }
+  };
+
   // 4) Render
   return (
     <>
@@ -337,7 +379,8 @@ const OrdersPage = () => {
                 <div className="grid grid-cols-12 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold border-b border-gray-300 dark:border-gray-600">
                   <div className="col-span-2 p-4">Order</div>
                   <div className="col-span-2 p-4">Subdomain</div>
-                  <div className="col-span-6 p-4">Product Properties</div>
+                  <div className="col-span-2 p-4">Story Status</div>
+                  <div className="col-span-4 p-4">Product Properties</div>
                   <div className="col-span-2 p-4 text-center">Actions</div>
                 </div>
 
@@ -351,7 +394,6 @@ const OrdersPage = () => {
                         key={order.id}
                         className="grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
-                        {/* Column 1: Order Info */}
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
                         <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
                           <b>{order.name}</b>
@@ -491,8 +533,32 @@ const OrdersPage = () => {
                           </div>
                         </div>
 
+                        {/* Column 3: Story Status (col-span-2) */}
+                        <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                          <label
+                            className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                          >
+                            Story Status
+                          </label>
+                          <select
+                            className={`w-full p-2 border rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery"
+                              ? "border-green-500 text-green-500 dark:bg-green-900"
+                              : "border-gray-300"
+                              }`}
+                            value={storyStatuses[order.id] || "New Order"}
+                            onChange={(e) => handleStoryStatusChange(order.id, e.target.value)}
+                          >
+                            {statusOptions.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+
                         {/* Column 3: Product Properties (expandable) */}
-                        <div className="col-span-6 p-4 text-gray-800 dark:text-gray-300">
+                        <div className="col-span-4 p-4 text-gray-800 dark:text-gray-300">
                           <b>
                             {getOrderURL(order)
                               ? `${getOrderURL(order)}.ossotna.com`
@@ -675,23 +741,47 @@ const OrdersPage = () => {
             className="relative bg-white dark:bg-gray-800 w-[80dvw] h-[80dvh] rounded shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close Button (positioned absolute at top-right) */}
-            <button
-              onClick={handleCloseModal}
-              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 z-10"
-            >
-              <span className="material-symbols-outlined">close</span>
-            </button>
 
             {/* We'll use a flex layout so the header is pinned at the top, and the rest can scroll */}
             <div className="flex flex-col h-full">
               {/* HEADER (fixed within the modal: use "sticky" or "shrink-0") */}
-              <div className="sticky top-0 p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10">
-                <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
-                {/* Add more to the header here if desired */}
-                {getOrderURL(selectedOrder)
-                  ? `${getOrderURL(selectedOrder)}.ossotna.com`
-                  : "No URL"}
+              <div className="sticky top-0 p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-row">
+                <div className="flex flex-col flex-1">
+                  <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
+                  {/* Add more to the header here if desired */}
+                  {getOrderURL(selectedOrder)
+                    ? `${getOrderURL(selectedOrder)}.ossotna.com`
+                    : "No URL"}
+                </div>
+
+                <div className="col-span-3 text-gray-800 dark:text-gray-300">
+                  <label
+                    className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                  >
+                    Story Status
+                  </label>
+                  <select
+                    className={`w-full p-2 border rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[selectedOrder.id] === "Ready for Delivery"
+                      ? "border-green-500 text-green-500 dark:bg-green-900"
+                      : "border-gray-300"
+                      }`}
+                    value={storyStatuses[selectedOrder.id] || "New Order"}
+                    onChange={(e) => handleStoryStatusChange(selectedOrder.id, e.target.value)}
+                  >
+                    {statusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleCloseModal}
+                  className="text-gray-500 hover:text-gray-700 z-10 ml-4"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
               </div>
 
               {/* MAIN CONTENT: 2-column split */}
