@@ -77,21 +77,44 @@ const OrdersPage = () => {
   useEffect(() => {
     const statuses = {};
     const subs = {};
+    const dedications = {};
+    const titles = {};
+    const milestones = {};
 
     orders.forEach((order) => {
+      // Existing story status
       const storyStatusMetafield = order.metafields?.find(
         (mf) => mf.namespace === "custom" && mf.key === "story-status"
       );
-
-      // 1) For story status
       statuses[order.id] = storyStatusMetafield?.value || "New Order";
 
-      // 2) For subdomain
+      // Existing subdomain
       subs[order.id] = getDefaultSubdomain(order);
+
+      // New Dedication Line
+      const dedicationMetafield = order.metafields?.find(
+        (mf) => mf.namespace === "custom" && mf.key === "story-dedication"
+      );
+      dedications[order.id] = dedicationMetafield?.value || "";
+
+      // New Story Title
+      const titleMetafield = order.metafields?.find(
+        (mf) => mf.namespace === "custom" && mf.key === "story-title"
+      );
+      titles[order.id] = titleMetafield?.value || "";
+
+      // New Milestone Date
+      const milestoneMetafield = order.metafields?.find(
+        (mf) => mf.namespace === "custom" && mf.key === "story-date"
+      );
+      milestones[order.id] = milestoneMetafield?.value || "";
     });
 
     setStoryStatuses(statuses);
     setSubdomains(subs);
+    setDedicationLines(dedications);
+    setStoryTitles(titles);
+    setMilestoneDates(milestones);
   }, [orders]);
 
   useEffect(() => {
@@ -664,6 +687,69 @@ const OrdersPage = () => {
     }
   };
 
+  /**
+ * Generic handler to save a metafield.
+ * @param {string} orderId - The ID of the order.
+ * @param {string} key - The metafield key.
+ * @param {string} value - The value to save.
+ */
+  const handleSaveMetafield = async (orderId, key, value) => {
+    try {
+      await saveMetafieldAPI(orderId, key, "string", value); // Assuming 'string' type
+      toast.success(`${key.replace("_", " ")} saved successfully!`, { autoClose: 2000 });
+      fetchOrders(limit); // Refresh orders to get updated metafields
+    } catch (error) {
+      console.error(`Error saving ${key}:`, error);
+      toast.error(`Failed to save ${key.replace("_", " ")}!`, { autoClose: 2000 });
+    }
+  };
+
+  /**
+   * Specific handlers for each field.
+   */
+  const handleSaveDedicationLine = (orderId, dedicationLine) => {
+    console.log("handleSaveMetafield", orderId, dedicationLine)
+    handleSaveMetafield(orderId, "story-dedication", dedicationLine);
+  };
+
+  const handleSaveStoryTitle = (orderId, storyTitle) => {
+    console.log("handleSaveMetafield", orderId, storyTitle)
+    handleSaveMetafield(orderId, "story-title", storyTitle);
+  };
+
+  const handleSaveMilestoneDate = (orderId, milestoneDate) => {
+    console.log("handleSaveMetafield", orderId, milestoneDate)
+    handleSaveMetafield(orderId, "story-date", milestoneDate);
+  };
+
+  // Helper functions to check if fields are in sync
+  const isDedicationLineInSync = (order) => {
+    const metafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-dedication"
+    );
+    if (!metafield?.value) return false; // Metafield is empty or doesn't exist
+    return dedicationLines[order.id] === metafield.value;
+  };
+
+  const isStoryTitleInSync = (order) => {
+    const metafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-title"
+    );
+    if (!metafield?.value) return false; // Metafield is empty or doesn't exist
+    return storyTitles[order.id] === metafield.value;
+  };
+
+  const isMilestoneDateInSync = (order) => {
+    const metafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-date"
+    );
+    const property = order.line_items[0].properties.find(
+      (prop) => prop.name === "milestone_date" // Fixed typo here
+    );
+    if (!metafield?.value) return false; // Metafield is empty or doesn't exist
+    return milestoneDates[order.id] === metafield.value;
+  };
+
   // 4) Render
   return (
     <>
@@ -1130,9 +1216,9 @@ const OrdersPage = () => {
                     </div>
 
                     <TwoFramesPreview
-                      milestoneDate={selectedOrder.line_items[0].properties.find(p => p.name === "milestone_date")?.value}
-                      title={selectedOrder.line_items[0].properties.find(p => p.name === "title")?.value}
-                      dedicationLine={selectedOrder.line_items[0].properties.find(p => p.name === "dedication_line")?.value}
+                      milestoneDate={milestoneDates[selectedOrder.id]}
+                      title={storyTitles[selectedOrder.id]}
+                      dedicationLine={dedicationLines[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
                     />
 
@@ -1276,6 +1362,158 @@ const OrdersPage = () => {
 
                     {/* Column 2: Subdomain Input & Actions */}
                     <div className="col-span-2 text-gray-800 dark:text-gray-300">
+                      {/* Existing Components and Actions */}
+
+                      {/* New Input Fields */}
+                      <div className="w-full">
+                        {/* Dedication Line */}
+                        <div className="mb-4">
+                          <label htmlFor="dedication-line" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Dedication Line
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              id="dedication-line"
+                              value={dedicationLines[selectedOrder.id] || ""}
+                              onChange={(e) => setDedicationLines((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: e.target.value,
+                              }))}
+                              className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isDedicationLineInSync(selectedOrder)
+                                ? "border-green-500 text-green-500 dark:bg-green-900"
+                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
+                                }`}
+                              placeholder="Enter dedication line"
+                            />
+                            {/* Load Dedication Line */}
+                            <button
+                              onClick={() => {
+                                const property = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "dedication_line"
+                                );
+                                const value = property?.value || "";
+                                setDedicationLines((prev) => ({
+                                  ...prev,
+                                  [selectedOrder.id]: value,
+                                }));
+                              }}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+                              title="Load Dedication Line"
+                            >
+                              <span className="material-symbols-outlined">restore</span>
+                            </button>
+                            {/* Save Dedication Line */}
+                            <button
+                              onClick={() => handleSaveDedicationLine(selectedOrder.id, dedicationLines[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                              disabled={isDedicationLineInSync(selectedOrder)}
+                              title="Save Dedication Line"
+                            >
+                              <span className="material-symbols-outlined">save</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Story Title */}
+                        <div className="mb-4">
+                          <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Story Title
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              id="story-title"
+                              value={storyTitles[selectedOrder.id] || ""}
+                              onChange={(e) => setStoryTitles((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: e.target.value,
+                              }))}
+                              className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isStoryTitleInSync(selectedOrder)
+                                ? "border-green-500 text-green-500 dark:bg-green-900"
+                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
+                                }`}
+                              placeholder="Enter story title"
+                            />
+                            {/* Load Story Title */}
+                            <button
+                              onClick={() => {
+                                const property = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "title"
+                                );
+                                const value = property?.value || "";
+                                setStoryTitles((prev) => ({
+                                  ...prev,
+                                  [selectedOrder.id]: value,
+                                }));
+                              }}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+                              title="Load Story Title"
+                            >
+                              <span className="material-symbols-outlined">restore</span>
+                            </button>
+                            {/* Save Story Title */}
+                            <button
+                              onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                              disabled={isStoryTitleInSync(selectedOrder)}
+                              title="Save Story Title"
+                            >
+                              <span className="material-symbols-outlined">save</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Milestone Date */}
+                        <div className="mb-4">
+                          <label htmlFor="milestone-date" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Milestone Date
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              id="milestone-date"
+                              value={milestoneDates[selectedOrder.id] || ""}
+                              onChange={(e) => setMilestoneDates((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: e.target.value,
+                              }))}
+                              className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isMilestoneDateInSync(selectedOrder)
+                                ? "border-green-500 text-green-500 dark:bg-green-900"
+                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
+                                }`}
+                              placeholder="Enter milestone date"
+                            />
+                            {/* Load Milestone Date */}
+                            <button
+                              onClick={() => {
+                                const property = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "milestone date"
+                                );
+                                const value = property?.value || "";
+                                setMilestoneDates((prev) => ({
+                                  ...prev,
+                                  [selectedOrder.id]: value,
+                                }));
+                              }}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+                              title="Load Milestone Date"
+                            >
+                              <span className="material-symbols-outlined">restore</span>
+                            </button>
+                            {/* Save Milestone Date */}
+                            <button
+                              onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                              disabled={isMilestoneDateInSync(selectedOrder)}
+                              title="Save Milestone Date"
+                            >
+                              <span className="material-symbols-outlined">save</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                       <label
                         htmlFor={`subdomain-${selectedOrder.id}`}
                         className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
@@ -1285,9 +1523,9 @@ const OrdersPage = () => {
                       <input
                         type="text"
                         id={`subdomain-${selectedOrder.id}`}
-                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${subdomainValue(selectedOrder) === getDefaultSubdomain(selectedOrder)
-                          ? "border-green-500 text-green-500"
-                          : "border-gray-300"
+                        className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${subdomainValue(selectedOrder) === getDefaultSubdomain(selectedOrder)
+                          ? "border-green-500 text-green-500 dark:bg-green-900"
+                          : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                           }`}
                         value={subdomainValue(selectedOrder)}
                         onChange={(e) =>
@@ -1302,7 +1540,7 @@ const OrdersPage = () => {
                       <div className="flex items-start justify-start gap-2 mt-2">
                         {/* Save Subdomain */}
                         <button
-                          className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomainValue(selectedOrder) === getDefaultSubdomain(selectedOrder)
+                          className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomainValue === getDefaultSubdomain(selectedOrder)
                             ? "bg-gray-500 cursor-not-allowed opacity-50"
                             : "bg-blue-500 hover:bg-blue-600"
                             }`}
