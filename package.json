@@ -20,10 +20,13 @@
     "next": "14.2.3",
     "npm": "^11.0.0",
     "prisma": "^5.13.0",
+    "qr-code-styling": "^1.9.1",
+    "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^18",
     "react-dom": "^18",
     "react-toastify": "^11.0.3",
+    "sharp": "^0.33.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
