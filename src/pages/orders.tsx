@@ -6,7 +6,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { useOrders } from "../hooks/useOrders";
 
 // Utility functions:
-import { getDefaultSubdomain, getOrderURL } from "../utils/orderUtils";
+import { getDefaultSubdomain, getOrderURL, processQrCodeSvg } from "../utils/orderUtils";
 
 // Service functions:
 import {
@@ -18,6 +18,7 @@ import {
   saveStatusAPI,
 } from "../services/orderService";
 import TwoFramesPreview from "@/components/CardsPreview";
+import Image from "next/image";
 
 const OrdersPage = () => {
   // 1) State + custom hook usage
@@ -25,6 +26,10 @@ const OrdersPage = () => {
 
   // For subdomain inputs
   const [subdomains, setSubdomains] = useState({});
+  // Add these state variables alongside your existing states
+  const [dedicationLines, setDedicationLines] = useState({});
+  const [storyTitles, setStoryTitles] = useState({});
+  const [milestoneDates, setMilestoneDates] = useState({});
 
   // For toggling row expansions
   const [toggledRows, setToggledRows] = useState({});
@@ -129,15 +134,30 @@ const OrdersPage = () => {
   // Generate and download a QR code (SVG)
   const handleGenerateQRCode = async (subdomain) => {
     try {
-      const svgData = await generateQRCodeAPI(subdomain);
-      const svgBlob = new Blob([svgData], { type: "image/svg+xml" });
+      // Fetch the raw SVG data from the API
+      const rawSvg = await generateQRCodeAPI(subdomain);
+
+      // Process the SVG to remove unwanted elements and ensure scalability
+      const cleanedSvg = processQrCodeSvg(rawSvg);
+
+      if (!cleanedSvg) {
+        throw new Error("Processed SVG is empty.");
+      }
+
+      // Create a Blob from the cleaned SVG string
+      const svgBlob = new Blob([cleanedSvg], { type: "image/svg+xml" });
       const svgUrl = URL.createObjectURL(svgBlob);
 
-      // Force download in browser
+      // Create a temporary link to initiate the download
       const link = document.createElement("a");
       link.href = svgUrl;
       link.download = `${subdomain}.svg`;
-      link.click();
+      document.body.appendChild(link); // Append to the DOM to make it clickable
+      link.click(); // Trigger the download
+      document.body.removeChild(link); // Clean up the DOM
+
+      // Revoke the object URL after the download
+      URL.revokeObjectURL(svgUrl);
     } catch (error) {
       console.error("Error generating QR code:", error);
       toast.error("Failed to generate QR code!", { autoClose: 2000 });
@@ -858,12 +878,8 @@ const OrdersPage = () => {
 
                         {/* Column 3: Product Properties (expandable) */}
                         <div className="col-span-4 p-4 text-gray-800 dark:text-gray-300">
-                          <b>
-                            {getOrderURL(order)
-                              ? `${getOrderURL(order)}.ossotna.com`
-                              : "Auto Generated"}
-                          </b>
-                          <br />
+                          <i>{order.line_items[0].variant_title}</i>
+                          <br />         <br />
                           {toggledRows[order.id] ? (
                             order.line_items[0].properties.map((prop) => (
                               <div key={prop.name}>
@@ -904,6 +920,12 @@ const OrdersPage = () => {
                                 </div>
                               ))
                           )}
+                          <b>
+                            {getOrderURL(order)
+                              ? `${getOrderURL(order)}.ossotna.com`
+                              : "Auto Generated"}
+                          </b>
+
                         </div>
 
                         {/* Column 4: Action buttons */}
@@ -922,7 +944,7 @@ const OrdersPage = () => {
                           </button>
 
                           {/* Download images as ZIP */}
-                          <button
+                          {/* <button
                             className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[order.id]
                               ? "text-gray-500 cursor-not-allowed"
                               : "text-blue-500 hover:text-blue-600"
@@ -938,7 +960,7 @@ const OrdersPage = () => {
                             ) : (
                               <span className="material-symbols-outlined">download</span>
                             )}
-                          </button>
+                          </button> */}
 
                           {/* Mini download progress text */}
                           {downloadProgress[order.id] && (
@@ -1048,9 +1070,7 @@ const OrdersPage = () => {
                 <div className="flex flex-col flex-1">
                   <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
                   {/* Add more to the header here if desired */}
-                  {getOrderURL(selectedOrder)
-                    ? `${getOrderURL(selectedOrder)}.ossotna.com`
-                    : "No URL"}
+                  {selectedOrder.line_items[0].variant_title}
                 </div>
 
                 <div className="col-span-3 text-gray-800 dark:text-gray-300">
@@ -1089,6 +1109,32 @@ const OrdersPage = () => {
 
                   {/* RIGHT HALF: Show _original_view_2 (if it exists) */}
                   <div className="w-1/2 p-6 flex items-start justify-start overflow-y-auto flex-col gap-6">
+
+                    <div className="flex flex-col items-start justify-start gap-2">
+                      {/* Example: Displaying Custom Items */}
+                      {selectedOrder.line_items
+                        .map(item => (
+                          <div key={item.id} className="flex items-center justify-start gap-2">
+                            <button
+                              className="p-1 pt-2 pr-2 pl-2 bg-red-700 hover:bg-red-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveCustomItem(selectedOrder, item.id);
+                              }}
+                            >
+                              <span className="material-symbols-outlined">remove</span>
+                            </button>
+                            <span>{item.title} - ${item.price}</span>
+                          </div>
+                        ))}
+                    </div>
+
+                    <TwoFramesPreview
+                      milestoneDate={selectedOrder.line_items[0].properties.find(p => p.name === "milestone_date")?.value}
+                      title={selectedOrder.line_items[0].properties.find(p => p.name === "title")?.value}
+                      dedicationLine={selectedOrder.line_items[0].properties.find(p => p.name === "dedication_line")?.value}
+                      subdomain={subdomainValue(selectedOrder)}
+                    />
 
                     <div className="col-span-2 text-center flex items-start justify-end gap-2">
                       {/* Copy Properties */}
@@ -1302,66 +1348,68 @@ const OrdersPage = () => {
                       </div>
                     </div>
 
-                    <TwoFramesPreview
-                      milestoneDate={selectedOrder.line_items[0].properties.find(p => p.name === "milestone_date")?.value}
-                      title={selectedOrder.line_items[0].properties.find(p => p.name === "title")?.value}
-                      dedicationLine={selectedOrder.line_items[0].properties.find(p => p.name === "dedication_line")?.value}
-                      qrCodeSvg={"qrCodeSVGFromYourAPI"}
-                      subdomain={`${subdomainValue(selectedOrder)}.ossotna.com`}
-                    />
-
-                    <div className="flex flex-col items-start justify-start gap-2">
-                      {/* Example: Displaying Custom Items */}
-                      {selectedOrder.line_items
-                        .map(item => (
-                          <div key={item.id} className="flex items-center justify-start gap-2">
-                            <button
-                              className="p-1 pt-2 pr-2 pl-2 bg-red-700 hover:bg-red-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveCustomItem(selectedOrder, item.id);
-                              }}
-                            >
-                              <span className="material-symbols-outlined">remove</span>
-                            </button>
-                            <span>{item.title} - ${item.price}</span>
-                          </div>
-                        ))}
-                    </div>
-
                   </div>
 
                   {/* LEFT HALF: Scrollable list of filtered properties */}
-                  <div className="w-1/2 overflow-y-auto p-6">
-                    {/** 1) Filter out unwanted properties **/}
-                    {selectedOrder.line_items[0].properties
+                  <div className="w-1/2 overflow-y-auto p-6 flex flex-col align-center justify-start relative">
+                    <div className="text-center font-bold bg-black p-4">ORDER PROPERTIES</div>
+                    {selectedOrder && selectedOrder.line_items[0].properties.filter(
+                      (prop) =>
+                        ["_original_view_2",].includes(prop.name)
+                    ).map((prop) => (
+                      <Image
+                        src={prop.value}
+                        alt={"preview"}
+                        width={320}
+                        height={320}
+                        className="rounded m-auto mb-6 mt-6"
+                      />
+                    ))
+                    }
+                    {selectedOrder && selectedOrder.line_items[0].properties
                       .filter(
                         (prop) =>
                           ![
                             "_cl_options",
                             "_cl_options_id",
                             "_cl_options_price",
+                            "_original_view_2"
                           ].includes(prop.name)
                       )
-                      .map((prop) => (
-                        <div key={prop.name} className="mb-4">
-                          <b>{prop.name}:</b>
-                          <br />
-                          {/^https?:\/\/\S+/.test(prop.value) ? (
-                            <a
-                              href={prop.value}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-500 underline"
-                            >
-                              {prop.value}
-                            </a>
-                          ) : (
-                            prop.value
-                          )}
-                          <hr className="mt-2 opacity-25" />
-                        </div>
-                      ))}
+                      .map((prop) => {
+                        // Regular expression to test for common image extensions
+                        const imageRegex = /\.(jpeg|jpg|gif|png|bmp|svg)$/i;
+                        const isImage = imageRegex.test(prop.value);
+                        const isValidURL = /^https?:\/\/\S+$/.test(prop.value);
+
+                        return (
+                          <div key={prop.name} className="mb-4">
+                            <b>{prop.name}:</b>
+                            <br />
+                            {isImage ? (
+                              <Image
+                                src={prop.value}
+                                alt={prop.name}
+                                width={200}
+                                height={200}
+                                className="rounded object-contain w-200 h-auto"
+                              />
+                            ) : isValidURL ? (
+                              <a
+                                href={prop.value}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-500 underline"
+                              >
+                                {prop.value}
+                              </a>
+                            ) : (
+                              <span className="text-gray-400">{prop.value}</span>
+                            )}
+                            <hr className="mt-2 opacity-25" />
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               </div>

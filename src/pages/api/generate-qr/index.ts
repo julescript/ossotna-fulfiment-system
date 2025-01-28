@@ -12,8 +12,7 @@ export default async function handler(req, res) {
   }
 
   const urlToEncode = `https://${subdomain}.ossotna.com`;
-  const logoPath =
-    "https://res.cloudinary.com/dyvaavnkb/image/upload/v1706862931/Rectangle_3_lkrv2d.png"; // Replace with your actual logo path
+  const logoPath = "https://res.cloudinary.com/ossotna/image/upload/v1738088411/sample/nfcicon_vixlug.svg";
 
   try {
     const response = await axios({
@@ -29,7 +28,6 @@ export default async function handler(req, res) {
           logo: logoPath, // Your logo here
           logoMode: "clean",
         },
-        size: 75,
         download: false,
         file: "svg",
       },
