@@ -179,15 +179,15 @@ const OrdersPage = () => {
       if (!selectedOrder) return;
       const subdomain = subdomains[selectedOrder.id];
       if (!subdomain) return;
-  
+
       try {
         const rawSvg = await generateQRCodeAPI(subdomain);
         const cleanedSvg = processQrCodeSvg(rawSvg);
-  
+
         if (!cleanedSvg) {
           throw new Error("Processed SVG is empty.");
         }
-  
+
         setGeneratedQRCodes((prev) => ({
           ...prev,
           [selectedOrder.id]: cleanedSvg,
@@ -202,11 +202,11 @@ const OrdersPage = () => {
         }));
       }
     };
-  
+
     generateQRCodes();
   }, [selectedOrder, subdomains]);
 
-    // Generate and download a QR code (SVG)
+  // Generate and download a QR code (SVG)
   const handleGenerateQRCode = async (subdomain) => {
     try {
       // Fetch the raw SVG data from the API
@@ -1248,25 +1248,6 @@ const OrdersPage = () => {
                   {/* RIGHT HALF: Show _original_view_2 (if it exists) */}
                   <div className="w-1/2 p-6 flex items-start justify-start overflow-y-auto flex-col gap-6">
 
-                    <div className="flex flex-col items-start justify-start gap-2">
-                      {/* Example: Displaying Custom Items */}
-                      {selectedOrder.line_items
-                        .map(item => (
-                          <div key={item.id} className="flex items-center justify-start gap-2">
-                            <button
-                              className="p-1 pt-2 pr-2 pl-2 bg-red-700 hover:bg-red-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveCustomItem(selectedOrder, item.id);
-                              }}
-                            >
-                              <span className="material-symbols-outlined">remove</span>
-                            </button>
-                            <span>{item.title} - ${item.price}</span>
-                          </div>
-                        ))}
-                    </div>
-
                     <TwoFramesPreview
                       milestoneDate={milestoneDates[selectedOrder.id]}
                       title={storyTitles[selectedOrder.id]}
@@ -1274,144 +1255,6 @@ const OrdersPage = () => {
                       qr={generatedQRCodes[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
                     />
-
-                    <div className="col-span-2 text-center flex items-start justify-end gap-2">
-                      {/* Copy Properties */}
-                      <button
-                        className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyProperties(selectedOrder);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">
-                          content_copy
-                        </span>
-                      </button>
-
-                      {/* Download images as ZIP */}
-                      <button
-                        className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[selectedOrder.id]
-                          ? "text-gray-500 cursor-not-allowed"
-                          : "text-blue-500 hover:text-blue-600"
-                          } transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadImagesAsZip(selectedOrder);
-                        }}
-                        disabled={loadingOrders2[selectedOrder.id]}
-                      >
-                        {loadingOrders2[selectedOrder.id] ? (
-                          <span className="material-symbols-outlined">downloading</span>
-                        ) : (
-                          <span className="material-symbols-outlined">download</span>
-                        )}
-                      </button>
-
-                      {/* Mini download progress text */}
-                      {downloadProgress[selectedOrder.id] && (
-                        <div className="mt-1 text-xs text-white">
-                          Downloading {downloadProgress[selectedOrder.id].current} / {downloadProgress[selectedOrder.id].total}
-                        </div>
-                      )}
-
-                      {/* Process & Upload images */}
-                      <button
-                        className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders[selectedOrder.id]
-                          ? "text-gray-500 cursor-not-allowed"
-                          : "text-green-500 hover:text-green-600"
-                          } transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleProcessAndUploadImages(selectedOrder);
-                        }}
-                        disabled={loadingOrders[selectedOrder.id]}
-                      >
-                        {loadingOrders[selectedOrder.id] ? (
-                          <span className="material-symbols-outlined">
-                            arrow_upload_progress
-                          </span>
-                        ) : (
-                          <span className="material-symbols-outlined">cloud_upload</span>
-                        )}
-                      </button>
-
-                      {/* Mini upload progress text */}
-                      {uploadProgress[selectedOrder.id] && (
-                        <div className="mt-1 text-xs text-white">
-                          Uploading {uploadProgress[selectedOrder.id].current} / {uploadProgress[selectedOrder.id].total}
-                        </div>
-                      )}
-
-                      {/* Copy Images JSON Button */}
-                      <button
-                        className={`p-1 pt-2 pr-2 pl-2 ${selectedOrder.metafields?.some(
-                          (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                        )
-                          ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
-                          : "bg-gray-700 text-gray-500 opacity-50"
-                          } transition`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyStoryPhotosJSON(selectedOrder);
-                        }}
-                        disabled={
-                          !selectedOrder.metafields?.some(
-                            (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                          )
-                        }
-                      >
-                        <span className="material-symbols-outlined">photo_library</span>
-                      </button>
-
-                      {/* Copy Password & Open Subdomain */}
-                      <button
-                        className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyPasswordAndOpenSubdomain(selectedOrder);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">link</span>
-                      </button>
-
-                    </div>
-                    <div className="col-span-2 text-center flex items-start justify-end gap-2">
-
-
-                      {/* Duplicate Draft Order */}
-                      <button
-                        className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDuplicateDraftOrder(selectedOrder);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">move_group</span>
-                      </button>
-
-                      {/* Create Direct Order Button */}
-                      <button
-                        className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCreateDirectOrder(selectedOrder);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">add_shopping_cart</span>
-                      </button>
-
-                      {/* Add Custom Item */}
-                      <button
-                        className="p-1 pt-2 pr-2 pl-2 bg-green-700 hover:bg-green-900 text-white-500 hover:text-white-600 transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddCustomItem(selectedOrder);
-                        }}
-                      >
-                        <span className="material-symbols-outlined">add</span>
-                      </button>
-                    </div>
 
                     {/* Column 2: Subdomain Input & Actions */}
                     <div className="col-span-2 text-gray-800 dark:text-gray-300">
@@ -1433,8 +1276,8 @@ const OrdersPage = () => {
                                 ...prev,
                                 [selectedOrder.id]: e.target.value,
                               }))}
-                              className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isDedicationLineInSync(selectedOrder)
-                                ? "border-green-500 text-green-500 dark:bg-green-900"
+                              className={`p-2 flex-1 block w-full rounded-md border dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isDedicationLineInSync(selectedOrder)
+                                ? "border-green-500 "
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
                               placeholder="Enter dedication line"
@@ -1482,8 +1325,8 @@ const OrdersPage = () => {
                                 ...prev,
                                 [selectedOrder.id]: e.target.value,
                               }))}
-                              className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isStoryTitleInSync(selectedOrder)
-                                ? "border-green-500 text-green-500 dark:bg-green-900"
+                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isStoryTitleInSync(selectedOrder)
+                                ? "border-green-500 "
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
                               placeholder="Enter story title"
@@ -1531,8 +1374,8 @@ const OrdersPage = () => {
                                 ...prev,
                                 [selectedOrder.id]: e.target.value,
                               }))}
-                              className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isMilestoneDateInSync(selectedOrder)
-                                ? "border-green-500 text-green-500 dark:bg-green-900"
+                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isMilestoneDateInSync(selectedOrder)
+                                ? "border-green-500 "
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
                               placeholder="Enter milestone date"
@@ -1576,8 +1419,8 @@ const OrdersPage = () => {
                       <input
                         type="text"
                         id={`subdomain-${selectedOrder.id}`}
-                        className={`p-2 flex-1 block w-full rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${subdomainValue(selectedOrder) === getDefaultSubdomain(selectedOrder)
-                          ? "border-green-500 text-green-500 dark:bg-green-900"
+                        className={`p-2 flex-1 block w-full dark:bg-gray-700 rounded-md border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${subdomainValue(selectedOrder) === getDefaultSubdomain(selectedOrder)
+                          ? "border-green-500"
                           : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                           }`}
                         value={subdomainValue(selectedOrder)}
@@ -1644,19 +1487,181 @@ const OrdersPage = () => {
                   {/* LEFT HALF: Scrollable list of filtered properties */}
                   <div className="w-1/2 overflow-y-auto p-6 flex flex-col align-center justify-start relative">
                     <div className="text-center font-bold bg-black p-4">ORDER PROPERTIES</div>
+
                     {selectedOrder && selectedOrder.line_items[0].properties.filter(
                       (prop) =>
                         ["_original_view_2",].includes(prop.name)
-                    ).map((prop) => (
+                    ).map((prop) => !!prop.value ? (
                       <Image
                         src={prop.value}
-                        alt={"preview"}
-                        width={320}
-                        height={320}
-                        className="rounded m-auto mb-6 mt-6"
+                        alt={prop.value}
+                        width={200}
+                        height={200}
+                        className="rounded m-auto mb-6 mt-6 w-auto h-auto"
                       />
-                    ))
+                    ) : null)
                     }
+
+                    <div className="flex flex-col items-start justify-start gap-4 mb-8">
+
+                      <div className="col-span-2 text-center flex items-start justify-end gap-2 w-full">
+                        {/* Copy Properties */}
+                        <button
+                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyProperties(selectedOrder);
+                          }}
+                        >
+                          <span className="material-symbols-outlined">
+                            content_copy
+                          </span>
+                        </button>
+
+                        {/* Download images as ZIP */}
+                        <button
+                          className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[selectedOrder.id]
+                            ? "text-gray-500 cursor-not-allowed"
+                            : "text-blue-500 hover:text-blue-600"
+                            } transition`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadImagesAsZip(selectedOrder);
+                          }}
+                          disabled={loadingOrders2[selectedOrder.id]}
+                        >
+                          {loadingOrders2[selectedOrder.id] ? (
+                            <span className="material-symbols-outlined">downloading</span>
+                          ) : (
+                            <span className="material-symbols-outlined">download</span>
+                          )}
+                        </button>
+
+                        {/* Mini download progress text */}
+                        {downloadProgress[selectedOrder.id] && (
+                          <div className="mt-1 text-xs text-white">
+                            Downloading {downloadProgress[selectedOrder.id].current} / {downloadProgress[selectedOrder.id].total}
+                          </div>
+                        )}
+
+                        {/* Process & Upload images */}
+                        <button
+                          className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders[selectedOrder.id]
+                            ? "text-gray-500 cursor-not-allowed"
+                            : "text-green-500 hover:text-green-600"
+                            } transition`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleProcessAndUploadImages(selectedOrder);
+                          }}
+                          disabled={loadingOrders[selectedOrder.id]}
+                        >
+                          {loadingOrders[selectedOrder.id] ? (
+                            <span className="material-symbols-outlined">
+                              arrow_upload_progress
+                            </span>
+                          ) : (
+                            <span className="material-symbols-outlined">cloud_upload</span>
+                          )}
+                        </button>
+
+                        {/* Mini upload progress text */}
+                        {uploadProgress[selectedOrder.id] && (
+                          <div className="mt-1 text-xs text-white">
+                            Uploading {uploadProgress[selectedOrder.id].current} / {uploadProgress[selectedOrder.id].total}
+                          </div>
+                        )}
+
+                        {/* Copy Images JSON Button */}
+                        <button
+                          className={`p-1 pt-2 pr-2 pl-2 ${selectedOrder.metafields?.some(
+                            (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                          )
+                            ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
+                            : "bg-gray-700 text-gray-500 opacity-50"
+                            } transition`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyStoryPhotosJSON(selectedOrder);
+                          }}
+                          disabled={
+                            !selectedOrder.metafields?.some(
+                              (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                            )
+                          }
+                        >
+                          <span className="material-symbols-outlined">photo_library</span>
+                        </button>
+
+                        {/* Copy Password & Open Subdomain */}
+                        <button
+                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyPasswordAndOpenSubdomain(selectedOrder);
+                          }}
+                        >
+                          <span className="material-symbols-outlined">link</span>
+                        </button>
+
+                        <div className="w-full"></div>
+
+                        {/* Duplicate Draft Order */}
+                        <button
+                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicateDraftOrder(selectedOrder);
+                          }}
+                        >
+                          <span className="material-symbols-outlined">move_group</span>
+                        </button>
+
+                        {/* Create Direct Order Button */}
+                        <button
+                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCreateDirectOrder(selectedOrder);
+                          }}
+                        >
+                          <span className="material-symbols-outlined">add_shopping_cart</span>
+                        </button>
+
+                        {/* Add Custom Item */}
+                        <button
+                          className="p-1 pt-2 pr-2 pl-2 bg-green-700 hover:bg-green-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddCustomItem(selectedOrder);
+                          }}
+                        >
+                          <span className="material-symbols-outlined">add</span>
+                        </button>
+
+                      </div>
+
+                      <div className="flex flex-col items-start justify-start gap-2">
+                        {/* Example: Displaying Custom Items */}
+                        {selectedOrder.line_items
+                          .map(item => (
+                            <div key={item.id} className="flex items-center justify-start gap-2">
+                              <button
+                                className="p-1 pt-2 pr-2 pl-2 bg-red-700 hover:bg-red-900 text-white-500 hover:text-white-600 transition"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveCustomItem(selectedOrder, item.id);
+                                }}
+                              >
+                                <span className="material-symbols-outlined">remove</span>
+                              </button>
+                              <span>{item.title} - ${item.price}</span>
+                            </div>
+                          ))}
+                      </div>
+
+                    </div>
+
                     {selectedOrder && selectedOrder.line_items[0].properties
                       .filter(
                         (prop) =>
@@ -1681,9 +1686,9 @@ const OrdersPage = () => {
                               <Image
                                 src={prop.value}
                                 alt={prop.name}
-                                width={200}
-                                height={200}
-                                className="rounded object-contain w-200 h-auto"
+                                width={150}
+                                height={150}
+                                className="rounded object-contain w-auto h-auto"
                               />
                             ) : isValidURL ? (
                               <a
