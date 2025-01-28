@@ -100,7 +100,7 @@ const OrdersPage = () => {
   }, [isModalOpen]);
 
   useEffect(() => {
-    console.log(JSON.stringify(selectedOrder?.line_items, null, 2));
+    console.log(selectedOrder ? selectedOrder : "no");
   }, [selectedOrder]);
 
   // 3) Handlers
@@ -291,6 +291,227 @@ const OrdersPage = () => {
     }
   };
 
+  // 1) Duplicates the order's line items into a new Shopify Draft Order
+  const handleDuplicateDraftOrder = async (originalOrder) => {
+    try {
+      // Prompt user for custom item name & price:
+      const customItemName = window.prompt("Enter custom item name (leave blank to skip):");
+      let customItemPrice = window.prompt("Enter custom item price in USD (leave blank to skip):");
+
+      // If the user canceled or left blank, we won't add anything.
+      // Otherwise, convert price to a number if provided.
+      if (customItemName && customItemPrice) {
+        // Basic parse; you can add more validation if needed
+        customItemPrice = parseFloat(customItemPrice) || 0;
+      }
+
+      // 1) Destructure fields from original order:
+      const {
+        line_items = [],
+        customer,
+        email,
+        shipping_address,
+        billing_address,
+      } = originalOrder;
+
+      // 2) Convert the existing line_items to draft-friendly format
+      const draftLineItems = line_items.map((item) => ({
+        variant_id: item.variant_id, // If it exists
+        title: item.title,
+        quantity: item.quantity,
+        price: item.price,
+        properties: item.properties?.map(({ name, value }) => ({ name, value })),
+      }));
+
+      // 3) If user entered a custom item, push it to draftLineItems
+      if (customItemName && customItemPrice > 0) {
+        draftLineItems.push({
+          title: customItemName,
+          price: customItemPrice.toString(), // must be a string
+          quantity: 1,
+          taxable: false, // Usually non-physical items aren't taxable
+          requires_shipping: false, // Non-physical => no shipping
+        });
+      }
+
+      // 4) Create the new draft_order payload
+      const draftOrderPayload = {
+        draft_order: {
+          line_items: draftLineItems,
+          customer: customer ? { id: customer.id } : null,
+          email,
+          shipping_address: shipping_address
+            ? {
+              address1: shipping_address.address1,
+              address2: shipping_address.address2,
+              city: shipping_address.city,
+              province: shipping_address.province,
+              country: shipping_address.country,
+              zip: shipping_address.zip,
+              phone: shipping_address.phone,
+              first_name: shipping_address.first_name,
+              last_name: shipping_address.last_name,
+            }
+            : null,
+          billing_address: billing_address
+            ? {
+              address1: billing_address.address1,
+              address2: billing_address.address2,
+              city: billing_address.city,
+              province: billing_address.province,
+              country: billing_address.country,
+              zip: billing_address.zip,
+              phone: billing_address.phone,
+              first_name: billing_address.first_name,
+              last_name: billing_address.last_name,
+            }
+            : null,
+        },
+      };
+
+      // 5) POST the payload to your Next.js API route
+      const response = await fetch("/api/shopify/duplicateDraftOrder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draftOrderPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create draft order: ${response.statusText}`);
+      }
+
+      // Success
+      toast.success("Draft order created successfully!", { autoClose: 2000 });
+    } catch (error) {
+      console.error("Error creating draft order:", error);
+      toast.error("Failed to create draft order!", { autoClose: 2000 });
+    }
+  };
+
+  // Example: Inside your OrdersPage component
+
+  // Example: Inside your OrdersPage component
+
+  const handleCreateDirectOrder = async (originalOrder) => {
+    try {
+      // Prompt user for custom item name & price:
+      const customItemName = window.prompt("Enter custom item name (leave blank to skip):");
+      let customItemPrice = window.prompt("Enter custom item price in USD (leave blank to skip):");
+
+      // If the user canceled or left blank, we won't add anything.
+      // Otherwise, convert price to a number if provided.
+      let customItems = [];
+      if (customItemName && customItemPrice) {
+        customItemPrice = parseFloat(customItemPrice);
+        if (!isNaN(customItemPrice) && customItemPrice > 0) {
+          customItems.push({
+            title: customItemName,
+            price: customItemPrice.toFixed(2), // Ensure two decimal places as string
+            quantity: 1,
+            taxable: false, // Non-physical items typically aren't taxable
+            requires_shipping: false, // Non-physical items don't require shipping
+            properties: [
+              { name: "is_custom", value: "true" }, // Optional: flag to identify custom items
+            ],
+          });
+        } else {
+          toast.error("Invalid price entered for custom item.", { autoClose: 2000 });
+          return;
+        }
+      }
+
+      // 1) Destructure fields from original order:
+      const {
+        line_items = [],
+        customer,
+        email,
+        shipping_address,
+        billing_address,
+        financial_status, // e.g., 'paid', 'pending'
+        fulfillment_status, // e.g., 'fulfilled', 'unfulfilled'
+        shipping_lines = [],
+        transactions = [],
+        // Add other necessary fields if required
+      } = originalOrder;
+
+      // 2) Convert the existing line_items to order-friendly format
+      const newLineItems = line_items.map((item) => ({
+        variant_id: item.variant_id, // Include if it's a physical product variant
+        title: item.title,
+        quantity: item.quantity,
+        price: item.price, // Price as string
+        properties: item.properties?.map(({ name, value }) => ({ name, value })),
+      }));
+
+      // 3) If user entered a custom item, push it to newLineItems
+      if (customItems.length > 0) {
+        newLineItems.push(...customItems);
+      }
+
+      // 4) Clone shipping_lines from the original order
+      const newShippingLines = shipping_lines.map((shippingLine) => ({
+        title: shippingLine.title,
+        price: shippingLine.price, // Price as string
+        code: shippingLine.code || "", // Shipping rate code
+        source: shippingLine.source || "custom", // Shipping rate source
+        // If there are carrier identifiers or other fields, include them here
+      }));
+
+      // 5) Clone transactions from the original order
+      // Note: Directly duplicating transactions may not be feasible due to security and data integrity.
+      // Instead, you can set up new transactions based on your payment workflow.
+      // Here, we'll assume you want to record a payment for the new order.
+      // You'll need to integrate with your payment gateway accordingly.
+
+      // Example: Creating a new transaction based on the original
+      // WARNING: Be cautious with handling sensitive payment information.
+      const newTransactions = transactions.map((transaction) => ({
+        kind: transaction.kind, // e.g., 'authorization', 'capture'
+        status: transaction.status, // e.g., 'success'
+        amount: transaction.amount, // Amount as string
+        gateway: transaction.gateway, // Payment gateway name
+        // Do not include sensitive fields like credit card information
+      }));
+
+      // 6) Create the new order payload
+      const orderPayload = {
+        order: {
+          line_items: newLineItems,
+          customer: customer ? { id: customer.id } : null, // Link to existing customer
+          email: email || (customer ? customer.email : undefined), // Ensure email is set
+          shipping_address: shipping_address || null,
+          billing_address: billing_address || null,
+          financial_status: financial_status || "pending", // Set based on your workflow
+          fulfillment_status: fulfillment_status || "unfulfilled", // Set based on your workflow
+          shipping_lines: newShippingLines,
+          // transactions: newTransactions, // Typically handled separately
+          // To create a payment, you might need to handle it via the Payment API or Checkout
+          // For simplicity, we'll omit transactions here
+          // Include other necessary fields like tags, note, etc., if needed
+        },
+      };
+
+      // 7) POST the payload to your Next.js API route to create a direct order
+      const response = await fetch("/api/shopify/createOrder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderPayload),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        toast.success("Order created successfully!", { autoClose: 2000 });
+        // Optionally, refresh orders or redirect as needed
+        fetchOrders(limit);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    } catch (error) {
+      console.error("Error creating order:", error);
+      toast.error("Failed to create order.", { autoClose: 2000 });
+    }
+  };
+
   // **New** helper to copy story-photos JSON if it exists
   const handleCopyStoryPhotosJSON = (order) => {
     const storyPhotosMetafield = order.metafields?.find(
@@ -342,6 +563,84 @@ const OrdersPage = () => {
     } catch (error) {
       console.error("Error updating story status:", error);
       toast.error("Failed to update story status!", { autoClose: 2000 });
+    }
+  };
+
+  const handleAddCustomItem = async (order) => {
+    try {
+      // Prompt user for custom item details
+      const customItemName = window.prompt("Enter custom item name:");
+      if (!customItemName) {
+        toast.warn("Custom item name is required.", { autoClose: 2000 });
+        return;
+      }
+
+      let customItemPrice = window.prompt("Enter custom item price in USD:");
+      if (!customItemPrice) {
+        toast.warn("Custom item price is required.", { autoClose: 2000 });
+        return;
+      }
+
+      customItemPrice = parseFloat(customItemPrice);
+      if (isNaN(customItemPrice) || customItemPrice <= 0) {
+        toast.error("Invalid price entered.", { autoClose: 2000 });
+        return;
+      }
+
+      // Call the API to add the custom item
+      const response = await fetch("/api/shopify/addCustomItem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          customItem: {
+            title: customItemName,
+            price: customItemPrice.toFixed(2), // Ensure two decimal places
+          },
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success("Custom item added successfully!", { autoClose: 2000 });
+        // Optionally, refresh order data here
+        fetchOrders(limit);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    } catch (error) {
+      console.error("Error adding custom item:", error);
+      toast.error("Failed to add custom item.", { autoClose: 2000 });
+    }
+  };
+
+  const handleRemoveCustomItem = async (order, lineItemId) => {
+    try {
+      // Confirm removal
+      const confirm = window.confirm("Are you sure you want to remove this custom item?");
+      if (!confirm) return;
+
+      // Call the API to remove the custom item
+      const response = await fetch("/api/shopify/removeCustomItem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          lineItemId, // The ID of the line item to remove
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success("Custom item removed successfully!", { autoClose: 2000 });
+        // Optionally, refresh order data here
+        fetchOrders(limit);
+      } else {
+        throw new Error(data.error || "Unknown error");
+      }
+    } catch (error) {
+      console.error("Error removing custom item:", error);
+      toast.error("Failed to remove custom item.", { autoClose: 2000 });
     }
   };
 
@@ -890,7 +1189,45 @@ const OrdersPage = () => {
                       >
                         <span className="material-symbols-outlined">link</span>
                       </button>
+
                     </div>
+                    <div className="col-span-2 text-center flex items-start justify-end gap-2">
+
+
+                      {/* Duplicate Draft Order */}
+                      <button
+                        className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDuplicateDraftOrder(selectedOrder);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">move_group</span>
+                      </button>
+
+                      {/* Create Direct Order Button */}
+                      <button
+                        className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCreateDirectOrder(selectedOrder);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">add_shopping_cart</span>
+                      </button>
+
+                      {/* Add Custom Item */}
+                      <button
+                        className="p-1 pt-2 pr-2 pl-2 bg-green-700 hover:bg-green-900 text-white-500 hover:text-white-600 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddCustomItem(selectedOrder);
+                        }}
+                      >
+                        <span className="material-symbols-outlined">add</span>
+                      </button>
+                    </div>
+
                     {/* Column 2: Subdomain Input & Actions */}
                     <div className="col-span-2 text-gray-800 dark:text-gray-300">
                       <label
@@ -972,6 +1309,25 @@ const OrdersPage = () => {
                       qrCodeSvg={"qrCodeSVGFromYourAPI"}
                       subdomain={`${subdomainValue(selectedOrder)}.ossotna.com`}
                     />
+
+                    <div className="flex flex-col items-start justify-start gap-2">
+                      {/* Example: Displaying Custom Items */}
+                      {selectedOrder.line_items
+                        .map(item => (
+                          <div key={item.id} className="flex items-center justify-start gap-2">
+                            <button
+                              className="p-1 pt-2 pr-2 pl-2 bg-red-700 hover:bg-red-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveCustomItem(selectedOrder, item.id);
+                              }}
+                            >
+                              <span className="material-symbols-outlined">remove</span>
+                            </button>
+                            <span>{item.title} - ${item.price}</span>
+                          </div>
+                        ))}
+                    </div>
 
                   </div>
 
