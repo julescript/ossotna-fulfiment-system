@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node server.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -25,6 +25,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^18",
     "react-dom": "^18",
+    "react-qr-scanner": "^1.0.0-alpha.11",
     "react-toastify": "^11.0.3",
     "sharp": "^0.33.5",
     "uuid": "^9.0.1"

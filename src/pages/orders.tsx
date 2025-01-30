@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import dynamic from 'next/dynamic'; // Import dynamic from Next.js
 
+// Dynamically import QrScanner to disable SSR
+const QrReader = dynamic(() => import('react-qr-scanner'), { ssr: false });
 // Custom hook for fetching orders:
 import { useOrders } from "../hooks/useOrders";
 
@@ -32,6 +35,8 @@ const OrdersPage = () => {
   const [milestoneDates, setMilestoneDates] = useState({});
   const [generatedQRCodes, setGeneratedQRCodes] = useState({});
 
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+
   // For toggling row expansions
   const [toggledRows, setToggledRows] = useState({});
 
@@ -54,7 +59,9 @@ const OrdersPage = () => {
     "New Order",
     "Story Draft",
     "Story Live",
+    "Story Approved",
     "Sent for Printing",
+    "Packaging",
     "QA Review",
     "Ready for Delivery",
   ];
@@ -153,6 +160,32 @@ const OrdersPage = () => {
       console.error("Error saving subdomain:", error);
       toast.error("Failed to save subdomain!", { autoClose: 2000 });
     }
+  };
+
+  const handleScan = (data) => {
+    if (data) {
+      console.log(data.text)
+      // Assuming the QR code contains a Shopify order URL like https://yourstore.com/orders/{orderId}
+      const url = new URL(data.text);
+      const pathSegments = url.pathname.split('/');
+      console.log(pathSegments)
+      const orderId = pathSegments[pathSegments.length - 1]; // Extract the last segment as orderId
+      console.log(orderId)
+      // Find the order with the extracted orderId
+      const order = orders.find(o => o.id === Number(orderId) || o.name === orderId); // Adjust based on how orderId is stored
+      console.log(orders)
+      if (order) {
+        handleOpenModal(order);
+        setIsCameraOpen(false); // Close the camera after successful scan
+      } else {
+        toast.error("Order not found", { autoClose: 2000 });
+      }
+    }
+  };
+
+  const handleError = (err) => {
+    console.error(err);
+    toast.error("Failed to access camera", { autoClose: 2000 });
   };
 
   // Generate and download a QR code (SVG)
@@ -805,8 +838,8 @@ const OrdersPage = () => {
   // 4) Render
   return (
     <>
-      <div className="p-8 bg-gray-900 min-h-screen relative">
-        <h1 className="text-2xl font-bold mb-8 text-white">Ossotna Shopify Orders</h1>
+      <div className="p-4 bg-gray-900 min-h-screen relative">
+        <h1 className="text-2xl font-bold mb-2 text-white">Ossotna Shopify Orders</h1>
 
         {/* Limit Selector */}
         <div className="mb-6 flex items-center gap-4">
@@ -825,20 +858,35 @@ const OrdersPage = () => {
             <option value="100">100</option>
             <option value="250">250</option>
           </select>
+
+          {/* QR Code Camera Button (Visible only on Mobile) */}
+          <div className="fixed top-6 right-6">
+            <button
+              onClick={() => setIsCameraOpen(true)}
+              className="p-4 pr-5 pl-5 pt-5 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 focus:outline-none"
+              title="Scan Order QR Code"
+            >
+              <span className="material-symbols-outlined">qr_code_scanner</span>
+            </button>
+          </div>
+
         </div>
 
-        {/* Main table container */}
+        {/* Main Table Container */}
         <div className={`h-full w-full ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
           <div className="h-full w-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
             <div className="w-full h-full">
               <div className="h-full w-full bg-white dark:bg-gray-800 shadow-md rounded-md overflow-hidden">
                 {/* Table Header */}
                 <div className="grid grid-cols-12 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold border-b border-gray-300 dark:border-gray-600">
-                  <div className="col-span-2 p-4">Order</div>
-                  <div className="col-span-2 p-4">Subdomain</div>
-                  <div className="col-span-2 p-4">Story Status</div>
-                  <div className="col-span-4 p-4">Product Properties</div>
-                  <div className="col-span-2 p-4 text-center">Actions</div>
+                  <div className="col-span-9 md:col-span-2 p-4">Order</div>
+
+                  {/* Hide on Mobile */}
+                  <div className="col-span-0 md:col-span-2 p-4 hidden md:block">Subdomain</div>
+                  <div className="col-span-0 md:col-span-2 p-4 hidden md:block">Story Status</div>
+                  <div className="col-span-0 md:col-span-4 p-4 hidden md:block">Product Properties</div>
+
+                  <div className="col-span-3 md:col-span-2 p-4 text-center">Actions</div>
                 </div>
 
                 {/* Table Body */}
@@ -852,7 +900,7 @@ const OrdersPage = () => {
                         className="grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
-                        <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                        <div className="col-span-9 md:col-span-2 p-4 text-gray-800 dark:text-gray-300">
                           <b>{order.name}</b>
                           <br />
                           {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
@@ -862,7 +910,15 @@ const OrdersPage = () => {
                             href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-500 underline"
+                            className="hidden md:inline-block text-blue-500 underline"
+                          >
+                            {order?.shipping_address?.phone || "N/A"}
+                          </a>
+                          <a
+                            href={`https://wa.me/${order?.shipping_address?.phone}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="md:hidden text-blue-500 underline"
                           >
                             {order?.shipping_address?.phone || "N/A"}
                           </a>
@@ -875,7 +931,7 @@ const OrdersPage = () => {
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
+                            className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
                           >
                             <span className="material-symbols-outlined">waving_hand</span>
                           </a>
@@ -887,7 +943,7 @@ const OrdersPage = () => {
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
+                            className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
                           >
                             <span className="material-symbols-outlined">volunteer_activism</span>
                           </a>
@@ -909,7 +965,7 @@ const OrdersPage = () => {
                                 )}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
+                                className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
                               >
                                 <span className="material-symbols-outlined">Draft</span>
                               </a>
@@ -917,7 +973,7 @@ const OrdersPage = () => {
                         </div>
 
                         {/* Column 2: Subdomain Input & Actions */}
-                        <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                        <div className="col-span-0 md:col-span-2 p-4 text-gray-800 dark:text-gray-300 hidden md:block">
                           <label
                             htmlFor={`subdomain-${order.id}`}
                             className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
@@ -940,7 +996,7 @@ const OrdersPage = () => {
                             }
                           />
 
-                          {/* Subdomain Buttons */}
+                          {/* Subdomain Buttons - Hidden on mobile */}
                           <div className="flex items-start justify-start gap-2 mt-2">
                             {/* Save Subdomain */}
                             <button
@@ -990,8 +1046,8 @@ const OrdersPage = () => {
                           </div>
                         </div>
 
-                        {/* Column 3: Story Status (col-span-2) */}
-                        <div className="col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                        {/* Column 3: Story Status - Hidden on mobile */}
+                        <div className="col-span-0 md:col-span-2 p-4 text-gray-800 dark:text-gray-300 hidden md:block">
                           <label
                             className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
                           >
@@ -1013,11 +1069,10 @@ const OrdersPage = () => {
                           </select>
                         </div>
 
-
-                        {/* Column 3: Product Properties (expandable) */}
-                        <div className="col-span-4 p-4 text-gray-800 dark:text-gray-300">
+                        {/* Column 4: Product Properties - Hidden on mobile */}
+                        <div className="col-span-0 md:col-span-4 p-4 text-gray-800 dark:text-gray-300 hidden md:block">
                           <i>{order.line_items[0].variant_title}</i>
-                          <br />         <br />
+                          <br /> <br />
                           {toggledRows[order.id] ? (
                             order.line_items[0].properties.map((prop) => (
                               <div key={prop.name}>
@@ -1063,120 +1118,109 @@ const OrdersPage = () => {
                               ? `${getOrderURL(order)}.ossotna.com`
                               : "Auto Generated"}
                           </b>
-
                         </div>
 
-                        {/* Column 4: Action buttons */}
-                        <div className="col-span-2 p-4 text-center flex items-start justify-end gap-2">
-                          {/* Copy Properties */}
-                          <button
-                            className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyProperties(order);
-                            }}
-                          >
-                            <span className="material-symbols-outlined">
-                              content_copy
-                            </span>
-                          </button>
+                        {/* Column 5: Action Buttons */}
+                        <div className="col-span-3 md:col-span-2 p-4 text-center flex items-start justify-end gap-2">
+                          {/* Actions Container */}
+                          <div className="flex flex-wrap justify-center gap-2 md:flex-nowrap">
+                            {/* Copy Properties */}
+                            <button
+                              className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 hidden md:block"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyProperties(order);
+                              }}
+                              title="Copy Properties"
+                              aria-label="Copy Properties"
+                            >
+                              <span className="material-symbols-outlined">content_copy</span>
+                            </button>
 
-                          {/* Download images as ZIP */}
-                          {/* <button
-                            className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[order.id]
-                              ? "text-gray-500 cursor-not-allowed"
-                              : "text-blue-500 hover:text-blue-600"
-                              } transition`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownloadImagesAsZip(order);
-                            }}
-                            disabled={loadingOrders2[order.id]}
-                          >
-                            {loadingOrders2[order.id] ? (
-                              <span className="material-symbols-outlined">downloading</span>
-                            ) : (
-                              <span className="material-symbols-outlined">download</span>
-                            )}
-                          </button> */}
+                            {/* Process & Upload images */}
+                            <button
+                              className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 hidden md:block ${loadingOrders[order.id]
+                                ? "text-gray-500 cursor-not-allowed"
+                                : "text-green-500 hover:text-green-600"
+                                } transition`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleProcessAndUploadImages(order);
+                              }}
+                              disabled={loadingOrders[order.id]}
+                              title="Process & Upload Images"
+                              aria-label="Process & Upload Images"
+                            >
+                              {loadingOrders[order.id] ? (
+                                <span className="material-symbols-outlined">
+                                  arrow_upload_progress
+                                </span>
+                              ) : (
+                                <span className="material-symbols-outlined">cloud_upload</span>
+                              )}
+                            </button>
 
-                          {/* Mini download progress text */}
+                            {/* Copy Images JSON Button */}
+                            <button
+                              className={`p-1 pt-2 pr-2 pl-2 hidden md:block ${order.metafields?.some(
+                                (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                              )
+                                ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
+                                : "bg-gray-700 text-gray-500 opacity-50"
+                                } transition`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyStoryPhotosJSON(order);
+                              }}
+                              disabled={
+                                !order.metafields?.some(
+                                  (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                                )
+                              }
+                              title="Copy Images JSON"
+                              aria-label="Copy Images JSON"
+                            >
+                              <span className="material-symbols-outlined">photo_library</span>
+                            </button>
+
+                            {/* Copy Password & Open Subdomain */}
+                            <button
+                              className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyPasswordAndOpenSubdomain(order);
+                              }}
+                              title="Copy Password & Open Subdomain"
+                              aria-label="Copy Password & Open Subdomain"
+                            >
+                              <span className="material-symbols-outlined">link</span>
+                            </button>
+
+                            {/* Expand row */}
+                            <button
+                              className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenModal(order);
+                              }}
+                              title="Open Order Details"
+                              aria-label="Open Order Details"
+                            >
+                              <span className="material-symbols-outlined">open_in_new</span>
+                            </button>
+                          </div>
+
+                          {/* Progress Indicators (Optional) */}
                           {downloadProgress[order.id] && (
                             <div className="mt-1 text-xs text-white">
                               Downloading {downloadProgress[order.id].current} / {downloadProgress[order.id].total}
                             </div>
                           )}
-
-                          {/* Process & Upload images */}
-                          <button
-                            className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders[order.id]
-                              ? "text-gray-500 cursor-not-allowed"
-                              : "text-green-500 hover:text-green-600"
-                              } transition`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleProcessAndUploadImages(order);
-                            }}
-                            disabled={loadingOrders[order.id]}
-                          >
-                            {loadingOrders[order.id] ? (
-                              <span className="material-symbols-outlined">
-                                arrow_upload_progress
-                              </span>
-                            ) : (
-                              <span className="material-symbols-outlined">cloud_upload</span>
-                            )}
-                          </button>
-
-                          {/* Mini upload progress text */}
                           {uploadProgress[order.id] && (
                             <div className="mt-1 text-xs text-white">
                               Uploading {uploadProgress[order.id].current} / {uploadProgress[order.id].total}
                             </div>
                           )}
-
-                          {/* Copy Images JSON Button */}
-                          <button
-                            className={`p-1 pt-2 pr-2 pl-2 ${order.metafields?.some(
-                              (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                            )
-                              ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
-                              : "bg-gray-700 text-gray-500 opacity-50"
-                              } transition`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyStoryPhotosJSON(order);
-                            }}
-                            disabled={
-                              !order.metafields?.some(
-                                (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                              )
-                            }
-                          >
-                            <span className="material-symbols-outlined">photo_library</span>
-                          </button>
-
-                          {/* Copy Password & Open Subdomain */}
-                          <button
-                            className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCopyPasswordAndOpenSubdomain(order);
-                            }}
-                          >
-                            <span className="material-symbols-outlined">link</span>
-                          </button>
-
-                          {/* Expand row */}
-                          <button
-                            className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenModal(order);
-                            }}
-                          >
-                            <span className="material-symbols-outlined">open_in_new</span>
-                          </button>
                         </div>
                       </div>
                     );
@@ -1197,21 +1241,27 @@ const OrdersPage = () => {
         >
           {/* Outer container (stopPropagation so clicks inside don't close) */}
           <div
-            className="relative bg-white dark:bg-gray-800 w-[80dvw] h-[80dvh] rounded shadow-lg"
+            className={`relative bg-white dark:bg-gray-800 rounded shadow-lg ${
+              /* Make full screen without padding on mobile, retain original size on desktop */
+              "w-full h-full md:w-[80dvw] md:h-[80dvh] " +
+              (isMobile() ? "p-0" : "p-0")
+              }`}
             onClick={(e) => e.stopPropagation()}
           >
 
-            {/* We'll use a flex layout so the header is pinned at the top, and the rest can scroll */}
+            {/* Flex layout for header and content */}
             <div className="flex flex-col h-full">
+
               {/* HEADER (fixed within the modal: use "sticky" or "shrink-0") */}
-              <div className="sticky top-0 p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-row">
+              <div className="block md:sticky top-0 p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col flex-1">
                   <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
                   {/* Add more to the header here if desired */}
                   {selectedOrder.line_items[0].variant_title}
                 </div>
 
-                <div className="col-span-3 text-gray-800 dark:text-gray-300">
+                {/* Story Status - Move below on mobile */}
+                <div className={`col-span-3 text-gray-800 dark:text-gray-300 mt-4 md:mt-0 ${isMobile() ? "w-full" : "w-auto"}`}>
                   <label
                     className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
                   >
@@ -1235,19 +1285,18 @@ const OrdersPage = () => {
 
                 <button
                   onClick={handleCloseModal}
-                  className="text-gray-500 hover:text-gray-700 z-10 ml-4"
+                  className="text-gray-500 hover:text-gray-700 z-10 md:ml-4 absolute top-0 right-0 p-6"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
 
-              {/* MAIN CONTENT: 2-column split */}
-              <div className="flex-1 overflow-hidden">
-                <div className="flex h-full">
+              {/* MAIN CONTENT: Adjusted for Responsiveness */}
+              <div className="flex-1 overflow-hidden p-0">
+                <div className={`flex flex-col md:flex-row h-full overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
 
-                  {/* RIGHT HALF: Show _original_view_2 (if it exists) */}
-                  <div className="w-1/2 p-6 flex items-start justify-start overflow-y-auto flex-col gap-6">
-
+                  {/* RIGHT HALF: Preview Cards */}
+                  <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-6`}>
                     <TwoFramesPreview
                       milestoneDate={milestoneDates[selectedOrder.id]}
                       title={storyTitles[selectedOrder.id]}
@@ -1257,7 +1306,7 @@ const OrdersPage = () => {
                     />
 
                     {/* Column 2: Subdomain Input & Actions */}
-                    <div className="col-span-2 text-gray-800 dark:text-gray-300">
+                    <div className="col-span-2 text-gray-800 dark:text-gray-300 p-4 md:p-0">
                       {/* Existing Components and Actions */}
 
                       {/* New Input Fields */}
@@ -1281,6 +1330,7 @@ const OrdersPage = () => {
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
                               placeholder="Enter dedication line"
+                              readOnly={isMobile()} /* Make read-only on mobile */
                             />
                             {/* Load Dedication Line */}
                             <button
@@ -1296,6 +1346,7 @@ const OrdersPage = () => {
                               }}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
                               title="Load Dedication Line"
+                              disabled={isMobile()} /* Disable on mobile */
                             >
                               <span className="material-symbols-outlined">restore</span>
                             </button>
@@ -1303,7 +1354,7 @@ const OrdersPage = () => {
                             <button
                               onClick={() => handleSaveDedicationLine(selectedOrder.id, dedicationLines[selectedOrder.id] || "")}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isDedicationLineInSync(selectedOrder)}
+                              disabled={isDedicationLineInSync(selectedOrder) || isMobile()} /* Disable on mobile */
                               title="Save Dedication Line"
                             >
                               <span className="material-symbols-outlined">save</span>
@@ -1330,6 +1381,7 @@ const OrdersPage = () => {
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
                               placeholder="Enter story title"
+                              readOnly={isMobile()} /* Make read-only on mobile */
                             />
                             {/* Load Story Title */}
                             <button
@@ -1345,6 +1397,7 @@ const OrdersPage = () => {
                               }}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
                               title="Load Story Title"
+                              disabled={isMobile()} /* Disable on mobile */
                             >
                               <span className="material-symbols-outlined">restore</span>
                             </button>
@@ -1352,7 +1405,7 @@ const OrdersPage = () => {
                             <button
                               onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isStoryTitleInSync(selectedOrder)}
+                              disabled={isStoryTitleInSync(selectedOrder) || isMobile()} /* Disable on mobile */
                               title="Save Story Title"
                             >
                               <span className="material-symbols-outlined">save</span>
@@ -1379,6 +1432,7 @@ const OrdersPage = () => {
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
                               placeholder="Enter milestone date"
+                              readOnly={isMobile()} /* Make read-only on mobile */
                             />
                             {/* Load Milestone Date */}
                             <button
@@ -1394,6 +1448,7 @@ const OrdersPage = () => {
                               }}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
                               title="Load Milestone Date"
+                              disabled={isMobile()} /* Disable on mobile */
                             >
                               <span className="material-symbols-outlined">restore</span>
                             </button>
@@ -1401,7 +1456,7 @@ const OrdersPage = () => {
                             <button
                               onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isMilestoneDateInSync(selectedOrder)}
+                              disabled={isMilestoneDateInSync(selectedOrder) || isMobile()} /* Disable on mobile */
                               title="Save Milestone Date"
                             >
                               <span className="material-symbols-outlined">save</span>
@@ -1409,13 +1464,12 @@ const OrdersPage = () => {
                           </div>
                         </div>
                       </div>
-
                     </div>
 
                   </div>
 
                   {/* LEFT HALF: Scrollable list of filtered properties */}
-                  <div className="w-1/2 overflow-y-auto p-6 flex flex-col align-center justify-start relative">
+                  <div className="w-full md:w-1/2 md:overflow-y-auto p-6 flex flex-col align-center justify-start relative">
                     <div className="text-center font-bold bg-black p-4">ORDER PROPERTIES</div>
 
                     {selectedOrder && selectedOrder.line_items[0].properties.filter(
@@ -1582,6 +1636,8 @@ const OrdersPage = () => {
                                   e.stopPropagation();
                                   handleRemoveCustomItem(selectedOrder, item.id);
                                 }}
+                                title="Remove Custom Item"
+                                aria-label="Remove Custom Item"
                               >
                                 <span className="material-symbols-outlined">remove</span>
                               </button>
@@ -1639,12 +1695,58 @@ const OrdersPage = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>      </div>      </div>
+      )}
+
+      {isCameraOpen && (
+        // Backdrop for QR Scanner
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+          {/* QR Scanner Container */}
+          <div className="relative bg-white dark:bg-gray-800 p-4 rounded-md">
+            <p className="mb-4 text-center text-gray-700 dark:text-gray-300">Scan order label QR Code</p>
+            {/* QR Reader */}
+            <QrReader
+              delay={300}
+              onError={handleError}
+              onScan={handleScan}
+              style={{ width: '300px' }}
+              constraints={{
+                video: {
+                  facingMode: 'environment', // Correct
+                },
+              }}
+            />
+            {/* Close Button */}
+            <button
+              onClick={() => setIsCameraOpen(false)}
+              className="w-full p-4 mt-2 bg-gray-900 text-white-500 hover:text-white-700"
+              title="Close Scanner"
+            >
+              CLOSE
+            </button>
           </div>
         </div>
       )}
     </>
   );
 };
+
+const isMobile = () => {
+  if (typeof window !== 'undefined') {
+    return window.innerWidth < 768;
+  }
+  return false;
+};
+
+/**
+ * Utility function to check if the device is desktop.
+ */
+const isDesktop = () => {
+  if (typeof window !== 'undefined') {
+    return window.innerWidth >= 768;
+  }
+  return false;
+};
+
 
 export default OrdersPage;

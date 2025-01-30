@@ -221,7 +221,7 @@ const OneSVGWithTwoFrames = ({
                 {/* Copy to Clipboard Button */}
                 <button
                     onClick={handleCopyToClipboard}
-                    className="text-white-500 hover:text-white-600 transition p-2 pt-2 pr-4 pl-4 bg-yellow-700 hover:bg-yellow-900"
+                    className="hidden md:block text-white-500 hover:text-white-600 transition p-2 pt-2 pr-4 pl-4 bg-yellow-700 hover:bg-yellow-900"
                     disabled={isLoading || !!error}
                 >
                     Copy SVG
@@ -229,7 +229,7 @@ const OneSVGWithTwoFrames = ({
                 {/* Download Button */}
                 <button
                     onClick={handleDownload}
-                    className="text-white-500 hover:text-white-600 transition p-2 pt-2 pr-4 pl-4 bg-yellow-700 hover:bg-yellow-900"
+                    className="hidden md:block text-white-500 hover:text-white-600 transition p-2 pt-2 pr-4 pl-4 bg-yellow-700 hover:bg-yellow-900"
                     disabled={isLoading || !!error}
                 >
                     Download SVG

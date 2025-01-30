@@ -33,3 +33,17 @@ export function useOrders() {
     fetchOrders, // in case you want to refresh manually
   };
 }
+
+export const useIsNFCSupported = () => {
+ const [isNFCSupported, setIsNFCSupported] = useState(false);
+
+ useEffect(() => {
+   if ("NDEFWriter" in window) {
+     setIsNFCSupported(true);
+   } else {
+     setIsNFCSupported(false);
+   }
+ }, []);
+
+ return isNFCSupported;
+};
