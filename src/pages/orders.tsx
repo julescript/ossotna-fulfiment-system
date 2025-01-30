@@ -970,6 +970,11 @@ const OrdersPage = () => {
                                 <span className="material-symbols-outlined">Draft</span>
                               </a>
                             )}
+
+                          <div className={`md:hidden w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery"
+                            ? "border-green-500 text-green-500 dark:bg-green-900"
+                            : "border-gray-300"
+                            }`}><i>{storyStatuses[order.id] || "New Order"}</i></div>
                         </div>
 
                         {/* Column 2: Subdomain Input & Actions */}
@@ -1253,7 +1258,7 @@ const OrdersPage = () => {
             <div className="flex flex-col h-full">
 
               {/* HEADER (fixed within the modal: use "sticky" or "shrink-0") */}
-              <div className="block md:sticky top-0 p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between">
+              <div className="block md:sticky top-0 p-4 md:p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col flex-1">
                   <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
                   {/* Add more to the header here if desired */}
@@ -1296,7 +1301,7 @@ const OrdersPage = () => {
                 <div className={`flex flex-col md:flex-row h-full overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
 
                   {/* RIGHT HALF: Preview Cards */}
-                  <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-6 md:overflow-y-auto`}>
+                  <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-0 md:gap-6 md:overflow-y-auto`}>
                     <TwoFramesPreview
                       milestoneDate={milestoneDates[selectedOrder.id]}
                       title={storyTitles[selectedOrder.id]}
@@ -1305,8 +1310,36 @@ const OrdersPage = () => {
                       subdomain={subdomainValue(selectedOrder)}
                     />
 
+                    <div className="p-4 pt-0 w-full md:hidden">
+                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Milestone Date
+                      </label>
+                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{milestoneDates[selectedOrder.id] || ""}</div>
+                    </div>
+
+                    <div className="p-4 pt-0 w-full md:hidden">
+                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Story Title
+                      </label>
+                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{storyTitles[selectedOrder.id] || ""}</div>
+                    </div>
+
+                    <div className="p-4 pt-0 w-full md:hidden">
+                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Dedication Line
+                      </label>
+                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{dedicationLines[selectedOrder.id] || ""}</div>
+                    </div>
+
+                    <div className="p-4 pt-0 w-full md:hidden">
+                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      URL
+                      </label>
+                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{subdomainValue(selectedOrder)}</div>
+                    </div>
+
                     {/* Column 2: Subdomain Input & Actions */}
-                    <div className="col-span-2 text-gray-800 dark:text-gray-300 p-4 md:p-0">
+                    <div className="col-span-2 text-gray-800 dark:text-gray-300 p-4 md:p-0 hidden md:block">
                       {/* Existing Components and Actions */}
 
                       {/* New Input Fields */}
@@ -1470,7 +1503,80 @@ const OrdersPage = () => {
 
                   {/* LEFT HALF: Scrollable list of filtered properties */}
                   <div className="w-full md:w-1/2 md:overflow-y-auto p-6 flex flex-col align-center justify-start relative">
-                    <div className="text-center font-bold bg-black p-4">ORDER PROPERTIES</div>
+                    <div className="text-center font-bold bg-black p-4 md:block hidden">ORDER PROPERTIES</div>
+
+                    {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
+                    <div className="col-span-9 md:col-span-2 text-gray-800 dark:text-gray-300">
+                      <b>{selectedOrder.name}</b>
+                      <br />
+                      {selectedOrder?.shipping_address?.first_name} {selectedOrder?.shipping_address?.last_name}
+                      <br />
+                      {/* Show phone or "N/A" */}
+                      <a
+                        href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hidden md:inline-block text-blue-500 underline"
+                      >
+                        {selectedOrder?.shipping_address?.phone || "N/A"}
+                      </a>
+                      <a
+                        href={`https://wa.me/${selectedOrder?.shipping_address?.phone}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="md:hidden text-blue-500 underline"
+                      >
+                        {selectedOrder?.shipping_address?.phone || "N/A"}
+                      </a>
+                      <br />
+
+                      {/* 1) Quick Hello Button */}
+                      <a
+                        href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}&text=${encodeURIComponent(
+                          `Hello ${selectedOrder?.shipping_address?.first_name}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
+                      >
+                        <span className="material-symbols-outlined">waving_hand</span>
+                      </a>
+
+                      {/* 2) Thank You / Intro Message Button */}
+                      <a
+                        href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}&text=${encodeURIComponent(
+                          `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
+                      >
+                        <span className="material-symbols-outlined">volunteer_activism</span>
+                      </a>
+
+                      {/* 3) Draft Link Button (only if "story-url" metafield exists) */}
+                      {selectedOrder.metafields?.some(
+                        (mf) => mf.namespace === "custom" && mf.key === "story-url"
+                      ) && (
+                          <a
+                            href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}&text=${encodeURIComponent(
+                              `Hello ${selectedOrder?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${selectedOrder.metafields.find(
+                                (mf) => mf.namespace === "custom" && mf.key === "story-url"
+                              ).value
+                              }.ossotna.com/\n${selectedOrder.line_items[0].properties.find((prop) => prop.name === "password")
+                                ? `password: ${selectedOrder.line_items[0].properties.find((prop) => prop.name === "password").value
+                                }`
+                                : ""
+                              }\n\nHope you like it as much as we do!`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
+                          >
+                            <span className="material-symbols-outlined">Draft</span>
+                          </a>
+                        )}
+                    </div>
 
                     {selectedOrder && selectedOrder.line_items[0].properties.filter(
                       (prop) =>
@@ -1486,7 +1592,7 @@ const OrdersPage = () => {
                     ) : null)
                     }
 
-                    <div className="flex flex-col items-start justify-start gap-4 mb-8">
+                    <div className="flex flex-col items-start justify-start gap-4 mb-8 hidden md:flex">
 
                       <div className="col-span-2 text-center flex items-start justify-end gap-2 w-full">
                         {/* Copy Properties */}
