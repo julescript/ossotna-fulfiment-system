@@ -1243,7 +1243,7 @@ const OrdersPage = () => {
           <div
             className={`relative bg-white dark:bg-gray-800 rounded shadow-lg ${
               /* Make full screen without padding on mobile, retain original size on desktop */
-              "w-full h-full md:w-[80dvw] md:h-[80dvh] " +
+              "w-full h-full md:w-[90dvw] md:h-[90dvh] " +
               (isMobile() ? "p-0" : "p-0")
               }`}
             onClick={(e) => e.stopPropagation()}
@@ -1296,7 +1296,7 @@ const OrdersPage = () => {
                 <div className={`flex flex-col md:flex-row h-full overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
 
                   {/* RIGHT HALF: Preview Cards */}
-                  <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-6`}>
+                  <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-6 md:overflow-y-auto`}>
                     <TwoFramesPreview
                       milestoneDate={milestoneDates[selectedOrder.id]}
                       title={storyTitles[selectedOrder.id]}
