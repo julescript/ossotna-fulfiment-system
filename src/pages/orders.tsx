@@ -26,6 +26,8 @@ import Image from "next/image";
 const OrdersPage = () => {
   // 1) State + custom hook usage
   const { orders, limit, setLimit, isLoading, fetchOrders } = useOrders();
+  // Add this alongside your existing useState declarations
+  const [isSubdomainCheckOpen, setIsSubdomainCheckOpen] = useState(false);
 
   // For subdomain inputs
   const [subdomains, setSubdomains] = useState({});
@@ -414,6 +416,23 @@ const OrdersPage = () => {
     if (storyUrlMetafield?.value) {
       const url = `https://${storyUrlMetafield.value}.ossotna.com`;
       window.open(url, "_blank", "noopener,noreferrer");
+    } else {
+      toast.warn("No story URL available to open.", { autoClose: 2000 });
+    }
+  };
+
+  // Copy password and open the subdomain in a new tab
+  const handleCopySubdomainOpenNFC = (order) => {
+    // 2) Open the subdomain
+    const storyUrlMetafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-url"
+    );
+    if (storyUrlMetafield?.value) {
+      const url = `${storyUrlMetafield.value}.ossotna.com`;
+      navigator.clipboard.writeText(url).then(
+        () => toast.success("domain copied to clipboard!", { autoClose: 2000 }),
+        (err) => toast.error("domain to copy password!", { autoClose: 2000 })
+      );
     } else {
       toast.warn("No story URL available to open.", { autoClose: 2000 });
     }
@@ -835,6 +854,110 @@ const OrdersPage = () => {
     return milestoneDates[order.id] === metafield.value;
   };
 
+  // Add these handler functions inside your OrdersPage component
+
+  /**
+   * Handler for scanning the QR code and comparing subdomains.
+   * @param {Object} data - The data returned from the QR scanner.
+   */
+  const handleSubdomainScan = (data) => {
+    if (data) {
+      try {
+        const scannedText = data.text.trim();
+
+        // Attempt to parse the scanned text as a URL
+        let scannedSubdomain = "";
+        try {
+          const url = new URL(scannedText);
+          scannedSubdomain = url.hostname.split('.')[0]; // Extract subdomain
+        } catch (err) {
+          // If not a valid URL, assume the scanned text is the subdomain itself
+          scannedSubdomain = scannedText;
+        }
+
+        const currentSubdomain = subdomainValue(selectedOrder);
+        console.log(`Scanned Subdomain: ${scannedSubdomain}`);
+        console.log(`Current Subdomain: ${currentSubdomain}`);
+
+        if (scannedSubdomain.toLowerCase() === currentSubdomain.toLowerCase()) {
+          toast.success("Subdomain matches!", { autoClose: 2000 });
+        } else {
+          toast.error("Subdomain does not match.", { autoClose: 2000 });
+        }
+
+        // Close the scanner modal after processing
+        setIsSubdomainCheckOpen(false);
+      } catch (error) {
+        console.error("Error processing scanned QR code:", error);
+        toast.error("Invalid QR code data.", { autoClose: 2000 });
+        setIsSubdomainCheckOpen(false);
+      }
+    }
+  };
+
+  /**
+   * Handler for errors during QR scanning.
+   * @param {Error} err - The error encountered.
+   */
+  const handleSubdomainError = (err) => {
+    console.error("QR Scanner Error:", err);
+    toast.error("Failed to access camera for scanning.", { autoClose: 2000 });
+    setIsSubdomainCheckOpen(false);
+  };
+
+  // Handler to open Shopify order page
+  const handleOpenShopifyOrderPage = (order) => {
+    const shopifyAdminBaseURL = "https://admin.shopify.com/store/83637c-4/orders"; // Replace with your actual Shopify admin URL
+    const shopifyOrderURL = `${shopifyAdminBaseURL}/${order.id}`;
+    window.open(shopifyOrderURL, "_blank", "noopener,noreferrer");
+  };
+
+  // Handler to open Shopify order page
+  const handleOpenShopifyPrintPage = (order) => {
+    const shopifyAdminBaseURL = "https://admin.shopify.com/store/83637c-4/apps/shopify-order-printer/app/orders/bulk?id="; // Replace with your actual Shopify admin URL
+    const shopifyOrderURL = `${shopifyAdminBaseURL}${order.id}`;
+    window.open(shopifyOrderURL, "_blank", "noopener,noreferrer");
+  };
+
+  const formatLebanesePhoneNumber = (phone) => {
+    if (!phone) return '';
+    // Remove any non-digit characters
+    const digits = phone.replace(/\D/g, '');
+    // Check if the phone number starts with '0' and remove it
+    const formattedNumber = digits.startsWith('0') ? digits.slice(1) : digits;
+    // Prepend the country code '961'
+    return `${formattedNumber}`;
+  };
+
+  // Handler to copy subdomain and open in localhost
+  const handleCopySubdomainAndOpenLocalhost = (order) => {
+    const storyUrlMetafield = order.metafields?.find(
+      (mf) => mf.namespace === "custom" && mf.key === "story-url"
+    );
+    const passwordProperty = order.line_items[0].properties.find(
+      (prop) => prop.name.toLowerCase() === "password"
+    );
+
+    if (storyUrlMetafield?.value) {
+      const subdomain = storyUrlMetafield.value;
+
+      // **Add the protocol (http://) to the URL**
+      const localhostURL = `http://${subdomain}.localhost:3001`;
+
+
+      if (passwordProperty?.value) {
+        navigator.clipboard.writeText(passwordProperty.value).then(
+          () => toast.success("Password copied to clipboard!", { autoClose: 2000 }),
+          (err) => toast.error("Failed to copy Password!", { autoClose: 2000 })
+        );
+      }
+      // Open the URL in a new tab
+      window.open(localhostURL, "_blank", "noopener,noreferrer");
+    } else {
+      toast.warn("No story URL available to open in localhost.", { autoClose: 2000 });
+    }
+  };
+
   // 4) Render
   return (
     <>
@@ -907,7 +1030,7 @@ const OrdersPage = () => {
                           <br />
                           {/* Show phone or "N/A" */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}`}
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden md:inline-block text-blue-500 underline"
@@ -926,7 +1049,7 @@ const OrdersPage = () => {
 
                           {/* 1) Quick Hello Button */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}&text=${encodeURIComponent(
                               `Hello ${order?.shipping_address?.first_name}`
                             )}`}
                             target="_blank"
@@ -938,7 +1061,7 @@ const OrdersPage = () => {
 
                           {/* 2) Thank You / Intro Message Button */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}&text=${encodeURIComponent(
                               `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                             )}`}
                             target="_blank"
@@ -953,7 +1076,7 @@ const OrdersPage = () => {
                             (mf) => mf.namespace === "custom" && mf.key === "story-url"
                           ) && (
                               <a
-                                href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                                href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}&text=${encodeURIComponent(
                                   `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${order.metafields.find(
                                     (mf) => mf.namespace === "custom" && mf.key === "story-url"
                                   ).value
@@ -1126,7 +1249,7 @@ const OrdersPage = () => {
                         </div>
 
                         {/* Column 5: Action Buttons */}
-                        <div className="col-span-3 md:col-span-2 p-4 text-center flex items-start justify-end gap-2">
+                        <div className="col-span-3 md:col-span-2 p-4 text-center flex flex-col items-end justify-start gap-2">
                           {/* Actions Container */}
                           <div className="flex flex-wrap justify-center gap-2 md:flex-nowrap">
                             {/* Copy Properties */}
@@ -1188,19 +1311,6 @@ const OrdersPage = () => {
                               <span className="material-symbols-outlined">photo_library</span>
                             </button>
 
-                            {/* Copy Password & Open Subdomain */}
-                            <button
-                              className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyPasswordAndOpenSubdomain(order);
-                              }}
-                              title="Copy Password & Open Subdomain"
-                              aria-label="Copy Password & Open Subdomain"
-                            >
-                              <span className="material-symbols-outlined">link</span>
-                            </button>
-
                             {/* Expand row */}
                             <button
                               className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
@@ -1211,7 +1321,62 @@ const OrdersPage = () => {
                               title="Open Order Details"
                               aria-label="Open Order Details"
                             >
-                              <span className="material-symbols-outlined">open_in_new</span>
+                              <span className="material-symbols-outlined">aspect_ratio</span>
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap justify-center gap-2 md:flex-nowrap">
+
+                            {/* Open Shopify Order Page */}
+                            <button
+                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenShopifyOrderPage(order);
+                              }}
+                              title="Open Shopify Order Page"
+                              aria-label="Open Shopify Order Page"
+                            >
+                              <span className="material-symbols-outlined">shoppingmode</span>
+                            </button>
+
+                            {/* Open Shopify Order Page */}
+                            <button
+                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenShopifyPrintPage(order);
+                              }}
+                              title="Open Shopify Order Page"
+                              aria-label="Open Shopify Order Page"
+                            >
+                              <span className="material-symbols-outlined">print</span>
+                            </button>
+
+                            {/* Copy Password & Open Subdomain */}
+                            <button
+                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyPasswordAndOpenSubdomain(order);
+                              }}
+                              title="Copy Password & Open Subdomain"
+                              aria-label="Copy Password & Open Subdomain"
+                            >
+                              <span className="material-symbols-outlined">language</span>
+                            </button>
+
+                            {/* Open Subdomain in Localhost */}
+                            <button
+                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopySubdomainAndOpenLocalhost(order);
+                              }}
+                              title="Open Subdomain in Localhost"
+                              aria-label="Open Subdomain in Localhost"
+                            >
+                              <span className="material-symbols-outlined">dns</span>
                             </button>
                           </div>
 
@@ -1266,7 +1431,7 @@ const OrdersPage = () => {
                 </div>
 
                 {/* Story Status - Move below on mobile */}
-                <div className={`col-span-3 text-gray-800 dark:text-gray-300 mt-4 md:mt-0 ${isMobile() ? "w-full" : "w-auto"}`}>
+                <div className={`col-span-3 text-gray-800 dark:text-gray-300 mt-2 md:mt-0 ${isMobile() ? "w-full" : "w-auto"}`}>
                   <label
                     className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
                   >
@@ -1326,16 +1491,45 @@ const OrdersPage = () => {
 
                     <div className="p-4 pt-0 w-full md:hidden">
                       <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Dedication Line
+                        Dedication Line
                       </label>
                       <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{dedicationLines[selectedOrder.id] || ""}</div>
                     </div>
 
                     <div className="p-4 pt-0 w-full md:hidden">
                       <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
-                      URL
+                        URL
                       </label>
-                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{subdomainValue(selectedOrder)}</div>
+                      <div className="flex flex-row items-center gap-2">
+                        <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{subdomainValue(selectedOrder)}</div>
+
+                        {/* Copy Password & Open Subdomain MOBILE */}
+                        <button
+                          className="md:hidden p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopySubdomainOpenNFC(selectedOrder);
+                          }}
+                          title="Copy Password & Open Subdomain"
+                          aria-label="Copy Password & Open Subdomain"
+                        >
+                          <span className="material-symbols-outlined">link</span>
+                        </button>
+
+                        {/* Compare Subdomain via QR Code */}
+                        <button
+                          className="md:hidden p-1 pt-2 pr-2 pl-2 bg-blue-700 hover:bg-blue-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsSubdomainCheckOpen(true);
+                          }}
+                          title="Compare Subdomain via QR Code"
+                          aria-label="Compare Subdomain via QR Code"
+                        >
+                          <span className="material-symbols-outlined">compare_arrows</span>
+                        </button>
+
+                      </div>
                     </div>
 
                     {/* Column 2: Subdomain Input & Actions */}
@@ -1371,7 +1565,26 @@ const OrdersPage = () => {
                                 const property = selectedOrder.line_items[0].properties.find(
                                   (prop) => prop.name === "dedication_line"
                                 );
-                                const value = property?.value || "";
+                                let value = property?.value || "";
+
+                                if (!value) {
+                                  // Get their_name and your_name from order properties
+                                  const theirNameProperty = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "their_name"
+                                  );
+                                  const yourNameProperty = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "your_name"
+                                  );
+
+                                  const theirName = theirNameProperty?.value || "";
+                                  const yourName = yourNameProperty?.value || "";
+
+                                  // Concatenate if both names exist
+                                  if (theirName && yourName) {
+                                    value = `For ${theirName}, By ${yourName}`;
+                                  }
+                                }
+
                                 setDedicationLines((prev) => ({
                                   ...prev,
                                   [selectedOrder.id]: value,
@@ -1513,7 +1726,7 @@ const OrdersPage = () => {
                       <br />
                       {/* Show phone or "N/A" */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}`}
+                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden md:inline-block text-blue-500 underline"
@@ -1521,7 +1734,7 @@ const OrdersPage = () => {
                         {selectedOrder?.shipping_address?.phone || "N/A"}
                       </a>
                       <a
-                        href={`https://wa.me/${selectedOrder?.shipping_address?.phone}`}
+                        href={`https://wa.me/${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="md:hidden text-blue-500 underline"
@@ -1532,7 +1745,7 @@ const OrdersPage = () => {
 
                       {/* 1) Quick Hello Button */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}&text=${encodeURIComponent(
+                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}&text=${encodeURIComponent(
                           `Hello ${selectedOrder?.shipping_address?.first_name}`
                         )}`}
                         target="_blank"
@@ -1544,7 +1757,7 @@ const OrdersPage = () => {
 
                       {/* 2) Thank You / Intro Message Button */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}&text=${encodeURIComponent(
+                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}&text=${encodeURIComponent(
                           `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                         )}`}
                         target="_blank"
@@ -1559,7 +1772,7 @@ const OrdersPage = () => {
                         (mf) => mf.namespace === "custom" && mf.key === "story-url"
                       ) && (
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${selectedOrder?.shipping_address?.phone}&text=${encodeURIComponent(
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}&text=${encodeURIComponent(
                               `Hello ${selectedOrder?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${selectedOrder.metafields.find(
                                 (mf) => mf.namespace === "custom" && mf.key === "story-url"
                               ).value
@@ -1833,6 +2046,37 @@ const OrdersPage = () => {
           </div>
         </div>
       )}
+
+      {isSubdomainCheckOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+          <div className="relative bg-white dark:bg-gray-800 p-4 rounded-md">
+            <p className="mb-4 text-center text-gray-700 dark:text-gray-300">Scan QR Code to Compare Subdomain</p>
+
+            {/* QR Reader */}
+            <QrReader
+              delay={300}
+              onError={handleSubdomainError}
+              onScan={handleSubdomainScan}
+              style={{ width: '300px', filter: 'invert(1)' }}
+              constraints={{
+                video: {
+                  facingMode: 'environment',
+                },
+              }}
+            />
+
+            {/* Close Button */}
+            <button
+              onClick={() => setIsSubdomainCheckOpen(false)}
+              className="w-full p-4 mt-2 bg-gray-900 text-white-500 hover:text-white-700"
+              title="Close Scanner"
+            >
+              CLOSE
+            </button>
+          </div>
+        </div>
+      )}
+
     </>
   );
 };
