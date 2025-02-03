@@ -59,6 +59,7 @@ const OrdersPage = () => {
   const [storyStatuses, setStoryStatuses] = useState({});
   const statusOptions = [
     "New Order",
+    "Waiting Story",
     "Story Draft",
     "Story Live",
     "Story Approved",
@@ -1034,7 +1035,7 @@ const OrdersPage = () => {
                     return (
                       <div
                         key={order.id}
-                        className={`grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery" ? "bg-green-900 dark:hover:bg-green-800" : (storyStatuses[order.id] === "New Order" ? "dark:bg-gray-600" : "")}`}
+                        className={`grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery" ? "bg-green-900 dark:hover:bg-green-800" : (storyStatuses[order.id] === "New Order" ? "dark:bg-gray-600" : (storyStatuses[order.id] === "Waiting Story" ? "dark:bg-[rgba(255,20,0,0.2)]" : ""))}`}
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
                         <div className="col-span-9 md:col-span-2 p-4 text-gray-800 dark:text-gray-300">
