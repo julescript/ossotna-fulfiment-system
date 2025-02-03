@@ -1016,6 +1016,9 @@ const OrdersPage = () => {
                 <div className="overflow-y-auto h-[calc(100%-3rem)]">
                   {orders.map((order) => {
                     const subdomainValue = subdomains[order.id] || "";
+                    const storyType = order.line_items[0].properties.find(
+                      (prop) => prop.name === "story"
+                    );
 
                     return (
                       <div
@@ -1024,7 +1027,13 @@ const OrdersPage = () => {
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
                         <div className="col-span-9 md:col-span-2 p-4 text-gray-800 dark:text-gray-300">
-                          <b>{order.name}</b>
+                          <b>{order.name}</b> <span className={
+                            storyType?.value === "later"
+                              ? "text-red-500"
+                              : storyType?.value === "help"
+                                ? "text-yellow-500"
+                                : "text-yellow-500"
+                          }><span className="uppercase">{storyType?.value ? storyType.value : null}</span></span>
                           <br />
                           {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
                           <br />
