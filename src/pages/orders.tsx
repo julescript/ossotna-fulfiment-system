@@ -438,6 +438,17 @@ const OrdersPage = () => {
     }
   };
 
+  const copyToClipboard = (dataToCopy) => {
+    if (dataToCopy) {
+      navigator.clipboard.writeText(dataToCopy).then(
+        () => toast.success("Copied to clipboard", { autoClose: 2000 }),
+        (err) => toast.error("Failed to Copy", { autoClose: 2000 })
+      );
+    } else {
+      toast.warn("Nothing to Copy", { autoClose: 2000 });
+    }
+  }
+
   // 1) Duplicates the order's line items into a new Shopify Draft Order
   const handleDuplicateDraftOrder = async (originalOrder) => {
     try {
@@ -1547,6 +1558,123 @@ const OrdersPage = () => {
 
                       {/* New Input Fields */}
                       <div className="w-full">
+
+                        {/* Milestone Date */}
+                        <div className="mb-4">
+                          <label htmlFor="milestone-date" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Milestone Date
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              id="milestone-date"
+                              value={milestoneDates[selectedOrder.id] || ""}
+                              onChange={(e) => setMilestoneDates((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: e.target.value,
+                              }))}
+                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isMilestoneDateInSync(selectedOrder)
+                                ? "border-green-500 "
+                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
+                                }`}
+                              placeholder="Enter milestone date"
+                              readOnly={isMobile()} /* Make read-only on mobile */
+                            />
+                            <button
+                              onClick={() => copyToClipboard(milestoneDates[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
+                              title="Save Story Title"
+                            >
+                              <span className="material-symbols-outlined">content_copy</span>
+                            </button>
+                            {/* Load Milestone Date */}
+                            <button
+                              onClick={() => {
+                                const property = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "milestone date"
+                                );
+                                const value = property?.value || "";
+                                setMilestoneDates((prev) => ({
+                                  ...prev,
+                                  [selectedOrder.id]: value,
+                                }));
+                              }}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+                              title="Load Milestone Date"
+                              disabled={isMobile()} /* Disable on mobile */
+                            >
+                              <span className="material-symbols-outlined">restore</span>
+                            </button>
+                            {/* Save Milestone Date */}
+                            <button
+                              onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                              disabled={isMilestoneDateInSync(selectedOrder) || isMobile()} /* Disable on mobile */
+                              title="Save Milestone Date"
+                            >
+                              <span className="material-symbols-outlined">save</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Story Title */}
+                        <div className="mb-4">
+                          <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Story Title
+                          </label>
+                          <div className="mt-1 flex">
+                            <input
+                              type="text"
+                              id="story-title"
+                              value={storyTitles[selectedOrder.id] || ""}
+                              onChange={(e) => setStoryTitles((prev) => ({
+                                ...prev,
+                                [selectedOrder.id]: e.target.value,
+                              }))}
+                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isStoryTitleInSync(selectedOrder)
+                                ? "border-green-500 "
+                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
+                                }`}
+                              placeholder="Enter story title"
+                              readOnly={isMobile()} /* Make read-only on mobile */
+                            />
+                            <button
+                              onClick={() => copyToClipboard(storyTitles[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
+                              title="Save Story Title"
+                            >
+                              <span className="material-symbols-outlined">content_copy</span>
+                            </button>
+                            {/* Load Story Title */}
+                            <button
+                              onClick={() => {
+                                const property = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "title"
+                                );
+                                const value = property?.value || "";
+                                setStoryTitles((prev) => ({
+                                  ...prev,
+                                  [selectedOrder.id]: value,
+                                }));
+                              }}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+                              title="Load Story Title"
+                              disabled={isMobile()} /* Disable on mobile */
+                            >
+                              <span className="material-symbols-outlined">restore</span>
+                            </button>
+                            {/* Save Story Title */}
+                            <button
+                              onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
+                              disabled={isStoryTitleInSync(selectedOrder) || isMobile()} /* Disable on mobile */
+                              title="Save Story Title"
+                            >
+                              <span className="material-symbols-outlined">save</span>
+                            </button>
+                          </div>
+                        </div>
+
                         {/* Dedication Line */}
                         <div className="mb-4">
                           <label htmlFor="dedication-line" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -1568,6 +1696,13 @@ const OrdersPage = () => {
                               placeholder="Enter dedication line"
                               readOnly={isMobile()} /* Make read-only on mobile */
                             />
+                            <button
+                              onClick={() => copyToClipboard(dedicationLines[selectedOrder.id] || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
+                              title="Save Story Title"
+                            >
+                              <span className="material-symbols-outlined">content_copy</span>
+                            </button>
                             {/* Load Dedication Line */}
                             <button
                               onClick={() => {
@@ -1617,107 +1752,46 @@ const OrdersPage = () => {
                           </div>
                         </div>
 
-                        {/* Story Title */}
+                        {/* Subdomain Input & Actions */}
                         <div className="mb-4">
-                          <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Story Title
+                          <label htmlFor="dedication-line" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            Subdomain
                           </label>
                           <div className="mt-1 flex">
                             <input
                               type="text"
-                              id="story-title"
-                              value={storyTitles[selectedOrder.id] || ""}
-                              onChange={(e) => setStoryTitles((prev) => ({
-                                ...prev,
-                                [selectedOrder.id]: e.target.value,
-                              }))}
-                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isStoryTitleInSync(selectedOrder)
+                              id="dedication-line"
+                              value={subdomainValue(selectedOrder)}
+                              onChange={(e) =>
+                                setSubdomains((prev) => ({
+                                  ...prev,
+                                  [selectedOrder.id]: e.target.value,
+                                }))
+                              }
+                              className={`p-2 flex-1 block w-full rounded-md border dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isDedicationLineInSync(selectedOrder)
                                 ? "border-green-500 "
                                 : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
                                 }`}
-                              placeholder="Enter story title"
-                              readOnly={isMobile()} /* Make read-only on mobile */
+                              placeholder="Subdomain"
+                              disabled
                             />
-                            {/* Load Story Title */}
                             <button
-                              onClick={() => {
-                                const property = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "title"
-                                );
-                                const value = property?.value || "";
-                                setStoryTitles((prev) => ({
-                                  ...prev,
-                                  [selectedOrder.id]: value,
-                                }));
-                              }}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                              title="Load Story Title"
-                              disabled={isMobile()} /* Disable on mobile */
-                            >
-                              <span className="material-symbols-outlined">restore</span>
-                            </button>
-                            {/* Save Story Title */}
-                            <button
-                              onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isStoryTitleInSync(selectedOrder) || isMobile()} /* Disable on mobile */
+                              onClick={() => copyToClipboard(subdomainValue(selectedOrder) || "")}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
                               title="Save Story Title"
                             >
-                              <span className="material-symbols-outlined">save</span>
+                              <span className="material-symbols-outlined">content_copy</span>
+                            </button>
+                            <button
+                              onClick={() => handleGenerateQRCode(subdomainValue(selectedOrder))}
+                              disabled={!subdomainValue(selectedOrder)}
+                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
+                            >
+                              <span className="material-symbols-outlined">qr_code</span>
                             </button>
                           </div>
                         </div>
 
-                        {/* Milestone Date */}
-                        <div className="mb-4">
-                          <label htmlFor="milestone-date" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Milestone Date
-                          </label>
-                          <div className="mt-1 flex">
-                            <input
-                              type="text"
-                              id="milestone-date"
-                              value={milestoneDates[selectedOrder.id] || ""}
-                              onChange={(e) => setMilestoneDates((prev) => ({
-                                ...prev,
-                                [selectedOrder.id]: e.target.value,
-                              }))}
-                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isMilestoneDateInSync(selectedOrder)
-                                ? "border-green-500 "
-                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
-                                }`}
-                              placeholder="Enter milestone date"
-                              readOnly={isMobile()} /* Make read-only on mobile */
-                            />
-                            {/* Load Milestone Date */}
-                            <button
-                              onClick={() => {
-                                const property = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "milestone date"
-                                );
-                                const value = property?.value || "";
-                                setMilestoneDates((prev) => ({
-                                  ...prev,
-                                  [selectedOrder.id]: value,
-                                }));
-                              }}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                              title="Load Milestone Date"
-                              disabled={isMobile()} /* Disable on mobile */
-                            >
-                              <span className="material-symbols-outlined">restore</span>
-                            </button>
-                            {/* Save Milestone Date */}
-                            <button
-                              onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isMilestoneDateInSync(selectedOrder) || isMobile()} /* Disable on mobile */
-                              title="Save Milestone Date"
-                            >
-                              <span className="material-symbols-outlined">save</span>
-                            </button>
-                          </div>
-                        </div>
                       </div>
                     </div>
 
