@@ -935,7 +935,7 @@ const OrdersPage = () => {
     // Remove any non-digit characters
     const digits = phone.replace(/\D/g, '');
     // Check if the phone number starts with '0' and remove it
-    const formattedNumber = digits.startsWith('0') ? digits.slice(1) : digits;
+    const formattedNumber = digits.startsWith('0') ? `+961${digits.slice(1)}` : digits;
     // Prepend the country code '961'
     return `${formattedNumber}`;
   };
