@@ -1034,7 +1034,7 @@ const OrdersPage = () => {
                     return (
                       <div
                         key={order.id}
-                        className="grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        className={`grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery" ? "bg-green-900 dark:hover:bg-green-800" : (storyStatuses[order.id] === "New Order" ? "dark:bg-gray-600" : "")}`}
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
                         <div className="col-span-9 md:col-span-2 p-4 text-gray-800 dark:text-gray-300">
@@ -1989,6 +1989,18 @@ const OrdersPage = () => {
                         >
                           <span className="material-symbols-outlined">link</span>
                         </button>
+
+                        <button
+                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopySubdomainAndOpenLocalhost(selectedOrder);
+                              }}
+                              title="Open Subdomain in Localhost"
+                              aria-label="Open Subdomain in Localhost"
+                            >
+                              <span className="material-symbols-outlined">dns</span>
+                            </button>
 
                         <div className="w-full"></div>
 
