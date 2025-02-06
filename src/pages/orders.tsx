@@ -281,7 +281,7 @@ const OrdersPage = () => {
     try {
       const folderName = order.name;
       const imageUrls = order.line_items[0].properties
-        .filter((prop) => prop.value.startsWith("https://") && prop.name !== "_original_view_2")
+        .filter((prop) => prop.value.startsWith("https://") && prop.name !== "_original_view_2" && prop.name !== "youtube")
         .map((prop) => prop.value);
 
       if (imageUrls.length === 0) {
