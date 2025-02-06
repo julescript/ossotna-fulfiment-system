@@ -13,9 +13,12 @@
   },
   "dependencies": {
     "@prisma/client": "^5.13.0",
+    "@squoosh/lib": "^0.5.3",
     "@uides/react-qr-reader": "^3.0.1-rc.27",
     "bcryptjs": "^2.4.3",
     "dompurify": "^3.2.3",
+    "file-type": "^20.1.0",
+    "heic-convert": "^2.1.0",
     "html-to-image": "^1.11.11",
     "install": "^0.13.0",
     "next": "14.2.3",
