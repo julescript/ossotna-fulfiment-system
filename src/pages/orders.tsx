@@ -63,6 +63,7 @@ const OrdersPage = () => {
     "Story Draft",
     "Story Live",
     "Story Approved",
+    "Printables Ready",
     "Sent for Printing",
     "Packaging",
     "QA Review",
@@ -348,7 +349,7 @@ const OrdersPage = () => {
   // Copy properties to clipboard, substituting `story-photos` if needed
   const handleCopyProperties = (order) => {
     const storyId = subdomains[order.id] || "No story-id available";
-
+  
     // Filter out certain properties
     const filteredProperties = order.line_items[0].properties.filter(
       (prop) =>
@@ -356,35 +357,42 @@ const OrdersPage = () => {
           prop.name
         )
     );
-
+  
     // Replace with story photos from metafield if needed
     const storyPhotosMetafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-photos"
     );
+  
     if (storyPhotosMetafield) {
       const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value);
-      // Example logic: If property name indicates an image slot, swap with the processed link
+  
       filteredProperties.forEach((prop) => {
-        // e.g., "photos_1", "photos_2", or "chapter_3_photo"
-        const match = prop.name.match(/(?:photos|chapter_(\d+)_photo)/);
-        if (match) {
-          // If "chapter_3_photo", match[1] => "3"; if "photos_1", no capturing group => might adapt the code
-          const index = match[1]
-            ? parseInt(match[1], 10) - 1
-            : parseInt(prop.name.split("_")[1], 10) - 1;
-          if (storyPhotoUrls[index]) {
-            prop.value = storyPhotoUrls[index];
+        if (prop.name === "authors_note_photo") {
+          prop.value = storyPhotoUrls[0] || prop.value; // First photo
+        } else if (prop.name === "epilogue_photo") {
+          prop.value = storyPhotoUrls[storyPhotoUrls.length - 1] || prop.value; // Last photo
+        } else {
+          // Match "photos_1", "photos_2" or "chapter_3_photo"
+          const match = prop.name.match(/(?:photos|chapter_(\d+)_photo)/);
+          if (match) {
+            const index = match[1]
+              ? parseInt(match[1], 10) // Extract the number from "chapter_X_photo"
+              : parseInt(prop.name.split("_")[1], 10); // Extract the number from "photos_X"
+  
+            if (index > 0 && storyPhotoUrls[index]) {
+              prop.value = storyPhotoUrls[index]; // Start from index 1 (skipping authors note)
+            }
           }
         }
       });
     }
-
+  
     // Build a final text string
     const textToCopy =
       `Order ID: ${order.name}\n` +
       `Story ID: ${storyId}\n` +
       filteredProperties.map((prop) => `${prop.name}: ${prop.value}`).join("\n");
-
+  
     navigator.clipboard.writeText(textToCopy).then(
       () => toast.success(`${order.name} properties copied`, { autoClose: 2000 }),
       (err) => {
@@ -707,7 +715,7 @@ const OrdersPage = () => {
 
   // Limit change handler
   const handleLimitChange = (e) => {
-    const newLimit = parseInt(e.target.value, 25);
+    const newLimit = parseInt(e.target.value, 10);
     setLimit(newLimit > 250 ? 250 : newLimit); // Shopify max limit is 250
   };
 
@@ -987,7 +995,7 @@ const OrdersPage = () => {
             onChange={handleLimitChange}
             className="p-2 bg-gray-800 text-white rounded"
           >
-            {/* <option value="10">10</option> */}
+            <option value="10">10</option>
             <option value="25">25</option>
             <option value="50">50</option>
             <option value="100">100</option>

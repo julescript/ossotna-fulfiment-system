@@ -208,7 +208,7 @@ const OneSVGWithTwoFrames = ({
                             fill="#FAFAFA"
                             textAnchor="middle"
                             fontFamily="sans-serif"
-                            fontSize="20"
+                            fontSize="28"
                             dominantBaseline="middle"
                         >
                             {subdomain}.ossotna.com
