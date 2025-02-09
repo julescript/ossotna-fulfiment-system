@@ -236,7 +236,7 @@ const OrdersPage = () => {
       const orderId = pathSegments[pathSegments.length - 1]; // Extract the last segment as orderId
       console.log(orderId)
       // Find the order with the extracted orderId
-      const order = orders.find(o => o.id === Number(orderId) || o.name === orderId); // Adjust based on how orderId is stored
+      const order = orders.find(o => o.id === String(orderId) || o.name === String(orderId)); // Adjust based on how orderId is stored
       console.log(orders)
       if (order) {
         handleOpenModal(order);
@@ -408,56 +408,99 @@ const OrdersPage = () => {
 
   // Copy properties to clipboard, substituting `story-photos` if needed
   const handleCopyProperties = (order) => {
-    const storyId = subdomains[order.id] || "No story-id available";
+    // 1. Get key fields from state or fallback to the line-item properties.
+    const subdomainValue =
+      subdomains[order.id] ||
+      order.line_items[0].properties.find((prop) => prop.name === "subdomain")?.value ||
+      "No story-id available";
+      
+    const storyTitleValue =
+      storyTitles[order.id] ||
+      order.line_items[0].properties.find((prop) => prop.name === "title")?.value ||
+      "No story title available";
+      
+    const dedicationLineValue =
+      dedicationLines[order.id] ||
+      order.line_items[0].properties.find((prop) => prop.name === "dedication_line")?.value ||
+      "No dedication line available";
   
-    // Filter out certain properties
-    const filteredProperties = order.line_items[0].properties.filter(
-      (prop) =>
-        !["_cl_options", "_cl_options_id", "_cl_options_price", "_original_view_2"].includes(
-          prop.name
-        )
+    // Get milestone date if available (do not return anything if missing)
+    const milestoneCandidate =
+      milestoneDates[order.id] ||
+      order.line_items[0].properties.find((prop) => prop.name === "milestone date")?.value;
+  
+    // Build the initial text string with the key fields.
+    let textToCopy =
+      `Order ID: ${order.name}\n` +
+      `Subdomain: ${subdomainValue}\n` +
+      `Story Title: ${storyTitleValue}\n` +
+      `Dedication Line: ${dedicationLineValue}\n`;
+  
+    // Only add the milestone date if a value is present.
+    if (milestoneCandidate) {
+      textToCopy += `Milestone Date: ${milestoneCandidate}\n`;
+    }
+    textToCopy += "\n";
+  
+    // 2. Prepare the rest of the line-item properties.
+    // Exclude keys that are either internal or already handled as key fields.
+    const excludedKeys = [
+      "_cl_options",
+      "_cl_options_id",
+      "_cl_options_price",
+      "_original_view_2",
+      "subdomain",
+      "url_option",
+      "custom URL",
+      "title",
+      "dedication_line",
+      "milestone date"
+    ];
+  
+    const remainingProperties = order.line_items[0].properties.filter(
+      (prop) => !excludedKeys.includes(prop.name)
     );
   
-    // Replace with story photos from metafield if needed
+    // 3. Process photo-related properties by checking for a "story-photos" metafield.
     const storyPhotosMetafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-photos"
     );
   
     if (storyPhotosMetafield) {
       const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value);
-  
-      filteredProperties.forEach((prop) => {
+      remainingProperties.forEach((prop) => {
         if (prop.name === "authors_note_photo") {
-          prop.value = storyPhotoUrls[0] || prop.value; // First photo
+          // Use the first photo URL.
+          prop.value = storyPhotoUrls[0] || prop.value;
         } else if (prop.name === "epilogue_photo") {
-          prop.value = storyPhotoUrls[storyPhotoUrls.length - 1] || prop.value; // Last photo
+          // Use the last photo URL.
+          prop.value = storyPhotoUrls[storyPhotoUrls.length - 1] || prop.value;
         } else {
-          // Match "photos_1", "photos_2" or "chapter_3_photo"
+          // For keys like "photos_1", "photos_2", or "chapter_3_photo":
           const match = prop.name.match(/(?:photos|chapter_(\d+)_photo)/);
           if (match) {
             const index = match[1]
-              ? parseInt(match[1], 10) // Extract the number from "chapter_X_photo"
-              : parseInt(prop.name.split("_")[1], 10); // Extract the number from "photos_X"
-  
+              ? parseInt(match[1], 10) // For "chapter_X_photo"
+              : parseInt(prop.name.split("_")[1], 10); // For "photos_X"
             if (index > 0 && storyPhotoUrls[index]) {
-              prop.value = storyPhotoUrls[index]; // Start from index 1 (skipping authors note)
+              prop.value = storyPhotoUrls[index];
             }
           }
         }
       });
     }
   
-    // Build a final text string
-    const textToCopy =
-      `Order ID: ${order.name}\n` +
-      `Story ID: ${storyId}\n` +
-      filteredProperties.map((prop) => `${prop.name}: ${prop.value}`).join("\n");
+    // 4. Append all remaining properties to the text.
+    textToCopy += remainingProperties
+      .map((prop) => `${prop.name}: ${prop.value}`)
+      .join("\n");
   
+    // 5. Copy the final text to the clipboard.
     navigator.clipboard.writeText(textToCopy).then(
       () => toast.success(`${order.name} properties copied`, { autoClose: 2000 }),
       (err) => {
-        toast.error("Failed to copy properties!", { autoClose: 2000 });
         console.error("Failed to copy text:", err);
+        toast.error("Failed to copy properties!", { autoClose: 2000 });
       }
     );
   };
