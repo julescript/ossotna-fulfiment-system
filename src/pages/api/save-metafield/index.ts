@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { namespace, key, value } = metafield;
+    const { namespace, key, value, type } = metafield;
 
     // Make a POST request to Shopify's order-specific metafield endpoint
     const response = await axios({
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
           namespace,
           key,
           value,
-          type: "single_line_text_field", // Define the type (new Shopify API standard)
+          type
         },
       },
     });

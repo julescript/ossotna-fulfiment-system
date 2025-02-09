@@ -87,47 +87,107 @@ const OrdersPage = () => {
 
   // 2) Populate initial subdomains each time orders change
   useEffect(() => {
-    const statuses = {};
-    const subs = {};
-    const dedications = {};
-    const titles = {};
-    const milestones = {};
-
-    orders.forEach((order) => {
-      // Existing story status
-      const storyStatusMetafield = order.metafields?.find(
-        (mf) => mf.namespace === "custom" && mf.key === "story-status"
-      );
-      statuses[order.id] = storyStatusMetafield?.value || "New Order";
-
-      // Existing subdomain
-      subs[order.id] = getDefaultSubdomain(order);
-
-      // New Dedication Line
-      const dedicationMetafield = order.metafields?.find(
-        (mf) => mf.namespace === "custom" && mf.key === "story-dedication"
-      );
-      dedications[order.id] = dedicationMetafield?.value || "";
-
-      // New Story Title
-      const titleMetafield = order.metafields?.find(
-        (mf) => mf.namespace === "custom" && mf.key === "story-title"
-      );
-      titles[order.id] = titleMetafield?.value || "";
-
-      // New Milestone Date
-      const milestoneMetafield = order.metafields?.find(
-        (mf) => mf.namespace === "custom" && mf.key === "story-date"
-      );
-      milestones[order.id] = milestoneMetafield?.value || "";
+    // If no orders exist, do nothing.
+    if (!orders || orders.length === 0) return;
+  
+    // We use JSON.stringify(orders) as the dependency so that changes
+    // in the orders’ content (even if length stays the same) will trigger this effect.
+    // (Note: For production code, consider using a deep comparison hook instead.)
+    console.log("orders", orders)
+    // Update story statuses if the value has changed for an order.
+    setStoryStatuses(prev => {
+      let updated = false;
+      const newStatuses = { ...prev };
+      orders.forEach(order => {
+        // Only update if metafields exist for this order.
+        if (order.metafields && order.metafields.length > 0) {
+          const storyStatusMetafield = order.metafields.find(
+            mf => mf.namespace === "custom" && mf.key === "story-status"
+          );
+          const newStatus = storyStatusMetafield?.value || "New Order";
+          if (newStatuses[order.id] !== newStatus) {
+            newStatuses[order.id] = newStatus;
+            updated = true;
+          }
+        }
+      });
+      return updated ? newStatuses : prev;
     });
-
-    setStoryStatuses(statuses);
-    setSubdomains(subs);
-    setDedicationLines(dedications);
-    setStoryTitles(titles);
-    setMilestoneDates(milestones);
-  }, [orders]);
+  
+    // Update subdomains.
+    setSubdomains(prev => {
+      let updated = false;
+      const newSubs = { ...prev };
+      orders.forEach(order => {
+        const defaultSub = getDefaultSubdomain(order);
+        if (newSubs[order.id] !== defaultSub) {
+          newSubs[order.id] = defaultSub;
+          updated = true;
+        }
+      });
+      return updated ? newSubs : prev;
+    });
+  
+    // Update dedication lines.
+    setDedicationLines(prev => {
+      let updated = false;
+      const newDedications = { ...prev };
+      orders.forEach(order => {
+        if (order.metafields && order.metafields.length > 0) {
+          const dedicationMetafield = order.metafields.find(
+            mf => mf.namespace === "custom" && mf.key === "story-dedication"
+          );
+          const newDed = dedicationMetafield?.value || "";
+          if (newDedications[order.id] !== newDed) {
+            newDedications[order.id] = newDed;
+            updated = true;
+          }
+        }
+      });
+      return updated ? newDedications : prev;
+    });
+  
+    // Update story titles.
+    setStoryTitles(prev => {
+      let updated = false;
+      const newTitles = { ...prev };
+      orders.forEach(order => {
+        if (order.metafields && order.metafields.length > 0) {
+          const titleMetafield = order.metafields.find(
+            mf => mf.namespace === "custom" && mf.key === "story-title"
+          );
+          const newTitle = titleMetafield?.value || "";
+          if (newTitles[order.id] !== newTitle) {
+            newTitles[order.id] = newTitle;
+            updated = true;
+          }
+        }
+      });
+      return updated ? newTitles : prev;
+    });
+  
+    // Update milestone dates.
+    setMilestoneDates(prev => {
+      let updated = false;
+      const newMilestones = { ...prev };
+      orders.forEach(order => {
+        if (order.metafields && order.metafields.length > 0) {
+          const milestoneMetafield = order.metafields.find(
+            mf => mf.namespace === "custom" && mf.key === "story-date"
+          );
+          const newMilestone = milestoneMetafield?.value || "";
+          if (newMilestones[order.id] !== newMilestone) {
+            newMilestones[order.id] = newMilestone;
+            updated = true;
+          }
+        }
+      });
+      return updated ? newMilestones : prev;
+    });
+    
+    // We list JSON.stringify(orders) as the dependency so that any change in the orders' content (e.g., metafields loading)
+    // will trigger this effect.
+  }, [JSON.stringify(orders)]);
 
   useEffect(() => {
     if (isModalOpen) {
@@ -299,7 +359,7 @@ const OrdersPage = () => {
 
       // 2) Save the final URLs to a "story-photos" metafield
       const photoUrls = processedImages.map((img) => img.url);
-      await saveMetafieldAPI(order.id, "story-photos", "json", JSON.stringify(photoUrls));
+      await saveMetafieldAPI(order.id, "story-photos", "json_string", JSON.stringify(photoUrls));
 
       toast.success(`Images processed and uploaded for ${folderName}!`, { autoClose: 2000 });
       // Optionally refetch orders to get the new metafields
@@ -819,7 +879,7 @@ const OrdersPage = () => {
  */
   const handleSaveMetafield = async (orderId, key, value) => {
     try {
-      await saveMetafieldAPI(orderId, key, "string", value); // Assuming 'string' type
+      await saveMetafieldAPI(orderId, key, "single_line_text_field", value); // Assuming 'string' type
       toast.success(`${key.replace("_", " ")} saved successfully!`, { autoClose: 2000 });
       fetchOrders(limit); // Refresh orders to get updated metafields
     } catch (error) {
@@ -949,6 +1009,16 @@ const OrdersPage = () => {
     return `${formattedNumber}`;
   };
 
+  const getPhoneNumber = (order) => {
+    if (!order) return '';
+    // Return order.phone if it exists
+    if (order.phone) return order.phone;
+    // Otherwise, return the phone from shipping_address (if available)
+    if (order.shipping_address && order.shipping_address.phone) {
+      return order.shipping_address.phone;
+    }
+    return ''; // Otherwise, return an empty string
+  };
   // Handler to copy subdomain and open in localhost
   const handleCopySubdomainAndOpenLocalhost = (order) => {
     const storyUrlMetafield = order.metafields?.find(
@@ -1059,26 +1129,26 @@ const OrdersPage = () => {
                           <br />
                           {/* Show phone or "N/A" */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}`}
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden md:inline-block text-blue-500 underline"
                           >
-                            {order?.shipping_address?.phone || "N/A"}
+                            {getPhoneNumber(order) || "N/A"}
                           </a>
                           <a
-                            href={`https://wa.me/${order?.shipping_address?.phone}`}
+                            href={`https://wa.me/${getPhoneNumber(order)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="md:hidden text-blue-500 underline"
                           >
-                            {order?.shipping_address?.phone || "N/A"}
+                            {getPhoneNumber(order) || "N/A"}
                           </a>
                           <br />
 
                           {/* 1) Quick Hello Button */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}&text=${encodeURIComponent(
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}&text=${encodeURIComponent(
                               `Hello ${order?.shipping_address?.first_name}`
                             )}`}
                             target="_blank"
@@ -1090,7 +1160,7 @@ const OrdersPage = () => {
 
                           {/* 2) Thank You / Intro Message Button */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}&text=${encodeURIComponent(
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}&text=${encodeURIComponent(
                               `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                             )}`}
                             target="_blank"
@@ -1105,7 +1175,7 @@ const OrdersPage = () => {
                             (mf) => mf.namespace === "custom" && mf.key === "story-url"
                           ) && (
                               <a
-                                href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(order?.shipping_address?.phone)}&text=${encodeURIComponent(
+                                href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}&text=${encodeURIComponent(
                                   `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${order.metafields.find(
                                     (mf) => mf.namespace === "custom" && mf.key === "story-url"
                                   ).value
@@ -1818,26 +1888,26 @@ const OrdersPage = () => {
                       <br />
                       {/* Show phone or "N/A" */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}`}
+                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden md:inline-block text-blue-500 underline"
                       >
-                        {selectedOrder?.shipping_address?.phone || "N/A"}
+                        {getPhoneNumber(selectedOrder) || "N/A"}
                       </a>
                       <a
-                        href={`https://wa.me/${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}`}
+                        href={`https://wa.me/${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="md:hidden text-blue-500 underline"
                       >
-                        {selectedOrder?.shipping_address?.phone || "N/A"}
+                        {getPhoneNumber(selectedOrder) || "N/A"}
                       </a>
                       <br />
 
                       {/* 1) Quick Hello Button */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}&text=${encodeURIComponent(
+                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}&text=${encodeURIComponent(
                           `Hello ${selectedOrder?.shipping_address?.first_name}`
                         )}`}
                         target="_blank"
@@ -1849,7 +1919,7 @@ const OrdersPage = () => {
 
                       {/* 2) Thank You / Intro Message Button */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}&text=${encodeURIComponent(
+                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}&text=${encodeURIComponent(
                           `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                         )}`}
                         target="_blank"
@@ -1864,7 +1934,7 @@ const OrdersPage = () => {
                         (mf) => mf.namespace === "custom" && mf.key === "story-url"
                       ) && (
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(selectedOrder?.shipping_address?.phone)}&text=${encodeURIComponent(
+                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}&text=${encodeURIComponent(
                               `Hello ${selectedOrder?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${selectedOrder.metafields.find(
                                 (mf) => mf.namespace === "custom" && mf.key === "story-url"
                               ).value
