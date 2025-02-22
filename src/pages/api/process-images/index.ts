@@ -25,7 +25,7 @@ export default async function handler(req, res) {
 
       // Step 2: Resize and convert to JPEG
       const resizedImage = await sharp(buffer)
-        .resize({ width: 600 })
+        .resize({ width: 800 })
         .jpeg()
         .toBuffer();
 
@@ -48,3 +48,13 @@ export default async function handler(req, res) {
     res.status(500).json({ error: "Failed to process images" });
   }
 }
+
+[
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148471/OSS-1174/geaka7pg4da3go0azkqv.jpg",
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148472/OSS-1174/eikew40phumxaxqcp7zj.jpg",
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148473/OSS-1174/rae3ysqzpgsf59wttvmz.jpg",
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148474/OSS-1174/a4dytanbhjc63y3czhbf.jpg",
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148476/OSS-1174/w8lhqha39c3o261vado2.jpg",
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148478/OSS-1174/sjp5gqtlwajpbrh6o9ru.jpg",
+  "https://res.cloudinary.com/ossotna/image/upload/v1739148481/OSS-1174/s5hly8bnrkhpnj1kap2v.jpg"
+]

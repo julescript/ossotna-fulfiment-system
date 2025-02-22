@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
       // 📏 Resize and convert to JPEG
       const resizedBuffer = await sharp(imageBuffer)
-        .resize({ width: 600 })
+        .resize({ width: 800 })
         .jpeg()
         .toBuffer();
 
