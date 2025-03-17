@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import dynamic from 'next/dynamic'; // Import dynamic from Next.js
+import ImageUploadModal from '../components/ImageUploadModal';
 
 // Dynamically import QrScanner to disable SSR
 const QrReader = dynamic(() => import('react-qr-scanner'), { ssr: false });
@@ -54,6 +55,7 @@ const OrdersPage = () => {
   // Right after other useState definitions:
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false);
 
   // 1) Add storyStatuses state & statusOptions array
   const [storyStatuses, setStoryStatuses] = useState({});
@@ -1094,19 +1096,21 @@ const OrdersPage = () => {
   // 4) Render
   return (
     <>
-      <div className="p-4 bg-gray-900 min-h-screen relative">
-        <h1 className="text-2xl font-bold mb-2 text-white">Ossotna Shopify Orders</h1>
+      <div className="p-8 bg-gray-900 min-h-screen relative">
+        <div className="flex items-center mb-4">
+          <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mr-2" />
+        </div>
 
         {/* Limit Selector */}
         <div className="mb-6 flex items-center gap-4">
           <label htmlFor="limit" className="text-white">
-            # ORDERS TO FETCH
+            Orders Fetched
           </label>
           <select
             id="limit"
             value={limit}
             onChange={handleLimitChange}
-            className="p-2 bg-gray-800 text-white rounded"
+            className="p-2 bg-gray-600 text-white rounded border border-gray-500"
           >
             <option value="10">10</option>
             <option value="25">25</option>
@@ -1115,8 +1119,9 @@ const OrdersPage = () => {
             <option value="250">250</option>
           </select>
 
-          {/* QR Code Camera Button (Visible only on Mobile) */}
-          <div className="fixed top-6 right-6">
+          {/* Top Right Buttons */}
+          <div className="fixed top-6 right-6 flex space-x-4">
+            {/* QR Code Camera Button */}
             <button
               onClick={() => setIsCameraOpen(true)}
               className="p-4 pr-5 pl-5 pt-5 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 focus:outline-none"
@@ -1124,25 +1129,34 @@ const OrdersPage = () => {
             >
               <span className="material-symbols-outlined">qr_code_scanner</span>
             </button>
+            
+            {/* Image Upload Button */}
+            <button
+              onClick={() => setIsImageUploadModalOpen(true)}
+              className="p-4 pr-5 pl-5 pt-5 bg-green-600 text-white rounded shadow-lg hover:bg-green-700 focus:outline-none"
+              title="Upload Custom Images"
+            >
+              <span className="material-symbols-outlined">add_photo_alternate</span>
+            </button>
           </div>
 
         </div>
 
         {/* Main Table Container */}
         <div className={`h-full w-full ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
-          <div className="h-full w-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+          <div className="h-full w-full bg-gray-900 flex items-center justify-center">
             <div className="w-full h-full">
-              <div className="h-full w-full bg-white dark:bg-gray-800 shadow-md rounded-md overflow-hidden">
+              <div className="h-full w-full bg-gray-800 shadow-md rounded-md overflow-hidden border border-gray-600 table-fixed">
                 {/* Table Header */}
-                <div className="grid grid-cols-12 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold border-b border-gray-300 dark:border-gray-600">
-                  <div className="col-span-9 md:col-span-2 p-4">Order</div>
+                <div className="grid grid-cols-12 bg-gray-600 text-white font-bold border-b border-gray-500">
+                  <div className="col-span-9 md:col-span-2 p-4 truncate min-w-0">Order</div>
 
                   {/* Hide on Mobile */}
-                  <div className="col-span-0 md:col-span-2 p-4 hidden md:block">Subdomain</div>
-                  <div className="col-span-0 md:col-span-2 p-4 hidden md:block">Story Status</div>
-                  <div className="col-span-0 md:col-span-4 p-4 hidden md:block">Product Properties</div>
+                  <div className="col-span-0 md:col-span-2 p-4 hidden md:block truncate min-w-0">Subdomain</div>
+                  <div className="col-span-0 md:col-span-2 p-4 hidden md:block truncate min-w-0">Story Status</div>
+                  <div className="col-span-0 md:col-span-4 p-4 hidden md:block truncate min-w-0">Product Properties</div>
 
-                  <div className="col-span-3 md:col-span-2 p-4 text-center">Actions</div>
+                  <div className="col-span-3 md:col-span-2 p-4 text-center truncate min-w-0">Actions</div>
                 </div>
 
                 {/* Table Body */}
@@ -1156,10 +1170,10 @@ const OrdersPage = () => {
                     return (
                       <div
                         key={order.id}
-                        className={`grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery" ? "bg-green-900 dark:hover:bg-green-800" : (storyStatuses[order.id] === "New Order" ? "dark:bg-gray-600" : (storyStatuses[order.id] === "Waiting Story" ? "dark:bg-[rgba(255,20,0,0.2)]" : ""))}`}
+                        className={`grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery" ? "bg-green-900 dark:hover:bg-green-800" : (storyStatuses[order.id] === "New Order" ? "dark:bg-gray-600" : (storyStatuses[order.id] === "Waiting Story" ? "dark:bg-[rgba(255,20,0,0.2)]" : ""))} min-w-0`}
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
-                        <div className="col-span-9 md:col-span-2 p-4 text-gray-800 dark:text-gray-300">
+                        <div className="col-span-9 md:col-span-2 p-4 text-gray-800 dark:text-gray-300 overflow-hidden">
                           <b>{order.name}</b> <span className={
                             storyType?.value === "later"
                               ? "text-red-500"
@@ -1288,7 +1302,17 @@ const OrdersPage = () => {
                               onClick={() => {
                                 const customURL = getOrderURL(order);
                                 const randomDigits = Math.floor(10000 + Math.random() * 90000);
-                                const fallback = `book-${randomDigits}`;
+                                
+                                // Check if story type is mother
+                                const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "";
+                                let prefix = "book-";
+                                
+                                if (storyType.toLowerCase() === "mother") {
+                                  prefix = "mom-";
+                                }
+                                
+                                const fallback = `${prefix}${randomDigits}`;
+                                
                                 setSubdomains((prev) => ({
                                   ...prev,
                                   [order.id]: customURL || fallback,
@@ -1341,8 +1365,27 @@ const OrdersPage = () => {
 
                         {/* Column 4: Product Properties - Hidden on mobile */}
                         <div className="col-span-0 md:col-span-4 p-4 text-gray-800 dark:text-gray-300 hidden md:block">
+                          {/* Display story-type label first */}
+                          {(() => {
+                            const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "Standard";
+                            let bgColor = "bg-gray-600";
+                            
+                            if (storyType.toLowerCase() === "mother") {
+                              bgColor = "bg-purple-600";
+                            } else if (storyType.toLowerCase() === "love") {
+                              bgColor = "bg-red-600";
+                            } else if (storyType.toLowerCase() === "friendship") {
+                              bgColor = "bg-blue-800";
+                            }
+                            
+                            return (
+                              <div className={`mt-2 mb-2 p-2 ${bgColor} rounded text-white font-bold`}>
+                                {storyType.toUpperCase()}
+                              </div>
+                            );
+                          })()}
                           <i>{order.line_items[0].variant_title}</i>
-                          <br /> <br />
+                          <br />
                           {toggledRows[order.id] ? (
                             order.line_items[0].properties.map((prop) => (
                               <div key={prop.name}>
@@ -1364,9 +1407,10 @@ const OrdersPage = () => {
                               </div>
                             ))
                           ) : (
-                            order.line_items[0].properties
-                              .filter((p) => ["title", "dedication_line"].includes(p.name))
-                              .map((prop) => (
+                            <>
+                              {order.line_items[0].properties
+                                .filter((p) => ["title", "dedication_line"].includes(p.name))
+                                .map((prop) => (
                                 <div key={prop.name}>
                                   {/^https?:\/\/\S+/.test(prop.value) ? (
                                     <a
@@ -1381,7 +1425,8 @@ const OrdersPage = () => {
                                     prop.value
                                   )}
                                 </div>
-                              ))
+                              ))}
+                            </>
                           )}
                           <b>
                             {getOrderURL(order)
@@ -1543,6 +1588,12 @@ const OrdersPage = () => {
           </div>
         </div>
 
+        {/* Image Upload Modal */}
+        <ImageUploadModal 
+          isOpen={isImageUploadModalOpen} 
+          onClose={() => setIsImageUploadModalOpen(false)} 
+        />
+        
         <ToastContainer />
       </div>
       {isModalOpen && selectedOrder && (
@@ -1565,8 +1616,8 @@ const OrdersPage = () => {
             <div className="flex flex-col h-full">
 
               {/* HEADER (fixed within the modal: use "sticky" or "shrink-0") */}
-              <div className="block md:sticky top-0 p-4 md:p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between">
-                <div className="flex flex-col flex-1">
+              <div className="block md:sticky top-0 p-4 md:p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between relative">
+                <div className="flex flex-col flex-1 pr-10">
                   <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
                   {/* Add more to the header here if desired */}
                   {selectedOrder.line_items[0].variant_title}
@@ -1597,9 +1648,9 @@ const OrdersPage = () => {
 
                 <button
                   onClick={handleCloseModal}
-                  className="text-gray-500 hover:text-gray-700 z-10 md:ml-4 absolute top-0 right-0 p-6"
+                  className="text-gray-500 hover:text-gray-700 z-10 absolute top-4 right-4 md:top-6 md:right-6 p-2 rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 flex items-center justify-center h-8 w-8"
                 >
-                  <span className="material-symbols-outlined">close</span>
+                  <span className="material-symbols-outlined text-lg">close</span>
                 </button>
               </div>
 

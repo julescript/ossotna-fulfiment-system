@@ -581,7 +581,16 @@ const Orders = () => {
                           onClick={() => {
                             const orderURL = getOrderURL(order);
                             const randomDigits = Math.floor(10000 + Math.random() * 90000); // Generate 5 random digits
-                            const subdomain = orderURL === "" ? `book-${randomDigits}` : orderURL;
+                            
+                            // Check if story type is mother
+                            const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "";
+                            let prefix = "book-";
+                            
+                            if (storyType.toLowerCase() === "mother") {
+                              prefix = "mom-";
+                            }
+                            
+                            const subdomain = orderURL === "" ? `${prefix}${randomDigits}` : orderURL;
 
                             setSubdomains((prev) => ({
                               ...prev,
