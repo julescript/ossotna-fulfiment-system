@@ -56,6 +56,10 @@ const OrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false);
+  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
+  const [clipboardContent, setClipboardContent] = useState("");
+  const [generatedStory, setGeneratedStory] = useState("");
+  const [isGeneratingStory, setIsGeneratingStory] = useState(false);
 
   // 1) Add storyStatuses state & statusOptions array
   const [storyStatuses, setStoryStatuses] = useState({});
@@ -546,7 +550,10 @@ const OrdersPage = () => {
       .map((prop) => `${prop.name}: ${prop.value}`)
       .join("\n");
   
-    // 5. Copy the final text to the clipboard.
+    // 5. Copy the final text to the clipboard and store it for the story modal.
+    setClipboardContent(textToCopy);
+    setSelectedOrder(order);
+    
     navigator.clipboard.writeText(textToCopy).then(
       () => toast.success(`${order.name} properties copied`, { autoClose: 2000 }),
       (err) => {
@@ -1505,6 +1512,20 @@ const OrdersPage = () => {
                             >
                               <span className="material-symbols-outlined">content_copy</span>
                             </button>
+                            
+                            {/* Generate Story */}
+                            <button
+                              className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-purple-700 hover:bg-purple-900 hidden md:block"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopyProperties(order);
+                                setIsStoryModalOpen(true);
+                              }}
+                              title="Generate Story"
+                              aria-label="Generate Story"
+                            >
+                              <span className="material-symbols-outlined">auto_stories</span>
+                            </button>
 
                             {/* Process & Upload images */}
                             <button
@@ -1647,6 +1668,112 @@ const OrdersPage = () => {
           isOpen={isImageUploadModalOpen} 
           onClose={() => setIsImageUploadModalOpen(false)} 
         />
+        
+        {/* Story Generation Modal */}
+        {isStoryModalOpen && selectedOrder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 w-11/12 max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold dark:text-white">Generate Story for {selectedOrder.name}</h2>
+                <button
+                  onClick={() => {
+                    setIsStoryModalOpen(false);
+                    setGeneratedStory("");
+                  }}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              
+              <div className="flex flex-col md:flex-row gap-4 flex-grow overflow-hidden">
+                {/* Left side - Clipboard Content */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <h3 className="text-lg font-semibold mb-2 dark:text-white">Order Properties (Markdown)</h3>
+                  <div className="relative flex-grow">
+                    <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">markdown</div>
+                    <textarea
+                      className="w-full h-[600px] p-4 font-mono text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded resize-none"
+                      value={clipboardContent}
+                      onChange={(e) => setClipboardContent(e.target.value)}
+                      readOnly={false}
+                      placeholder="# Order Properties\n\nPaste or edit order properties here..."
+                    ></textarea>
+                  </div>
+                </div>
+                
+                {/* Right side - Generated Story */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  <h3 className="text-lg font-semibold mb-2 dark:text-white">Generated Story (TypeScript)</h3>
+                  <div className="relative flex-grow">
+                    <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">typescript</div>
+                    {isGeneratingStory && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-70 z-30">
+                        <div className="flex flex-col items-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-2"></div>
+                          <span className="text-white">Generating story...</span>
+                        </div>
+                      </div>
+                    )}
+                    <textarea
+                      className="w-full h-[600px] p-4 font-mono text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded resize-none"
+                      value={generatedStory}
+                      onChange={(e) => setGeneratedStory(e.target.value)}
+                      readOnly={false}
+                      placeholder="// Generated TypeScript will appear here..."
+                    ></textarea>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end mt-4 gap-2">
+                <button
+                  onClick={() => {
+                    setIsGeneratingStory(true);
+                    // Call the OpenAI assistant API
+                    fetch('/api/generate-story', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        assistantId: 'asst_ndvTXfavraW5WZsIsr7Sj7BB',
+                        content: clipboardContent
+                      }),
+                    })
+                      .then(response => response.json())
+                      .then(data => {
+                        setGeneratedStory(data.story || 'Failed to generate story');
+                        setIsGeneratingStory(false);
+                      })
+                      .catch(error => {
+                        console.error('Error generating story:', error);
+                        setGeneratedStory('Error: ' + error.message);
+                        setIsGeneratingStory(false);
+                        toast.error('Failed to generate story');
+                      });
+                  }}
+                  disabled={isGeneratingStory}
+                  className={`px-4 py-2 rounded ${isGeneratingStory ? 'bg-gray-500' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
+                >
+                  {isGeneratingStory ? 'Generating...' : 'Generate Story'}
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedStory).then(
+                      () => toast.success('Story copied to clipboard', { autoClose: 2000 }),
+                      () => toast.error('Failed to copy story', { autoClose: 2000 })
+                    );
+                  }}
+                  disabled={!generatedStory}
+                  className={`px-4 py-2 rounded ${!generatedStory ? 'bg-gray-500' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+                >
+                  Copy Story
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         <ToastContainer />
       </div>
