@@ -468,32 +468,81 @@ const OrdersPage = () => {
       (mf) => mf.namespace === "custom" && mf.key === "story-photos"
     );
   
+    // Process photo-related properties if story-photos metafield exists
+    let propertiesToUse = [...remainingProperties];
+    
     if (storyPhotosMetafield) {
-      const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value);
-      remainingProperties.forEach((prop) => {
-        if (prop.name === "authors_note_photo") {
-          // Use the first photo URL.
-          prop.value = storyPhotoUrls[0] || prop.value;
-        } else if (prop.name === "epilogue_photo") {
-          // Use the last photo URL.
-          prop.value = storyPhotoUrls[storyPhotoUrls.length - 1] || prop.value;
-        } else {
-          // For keys like "photos_1", "photos_2", or "chapter_3_photo":
-          const match = prop.name.match(/(?:photos|chapter_(\d+)_photo)/);
-          if (match) {
-            const index = match[1]
-              ? parseInt(match[1], 10) // For "chapter_X_photo"
-              : parseInt(prop.name.split("_")[1], 10); // For "photos_X"
-            if (index > 0 && storyPhotoUrls[index]) {
-              prop.value = storyPhotoUrls[index];
+      try {
+        const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value);
+        
+        // Filter out any existing photo properties - we'll replace them entirely
+        propertiesToUse = propertiesToUse.filter(prop => 
+          !prop.name.includes('photo') && 
+          !prop.name.includes('photos') && 
+          !prop.name.match(/chapter_\d+_photo/)
+        );
+        
+        // Add photo properties only from the story-photos metafield
+        if (storyPhotoUrls && storyPhotoUrls.length > 0) {
+          // Check if authors_note_photo exists in the original properties
+          const hasAuthorsNote = remainingProperties.some(prop => prop.name === "authors_note_photo");
+          
+          // If authors_note_photo exists in properties, keep the traditional mapping
+          if (hasAuthorsNote) {
+            // Add authors_note_photo (first photo)
+            if (storyPhotoUrls[0]) {
+              propertiesToUse.push({
+                name: "authors_note_photo",
+                value: storyPhotoUrls[0]
+              });
+            }
+            
+            // Add numbered chapter photos
+            for (let i = 1; i < storyPhotoUrls.length - 1; i++) {
+              if (storyPhotoUrls[i]) {
+                propertiesToUse.push({
+                  name: `chapter_${i}_photo`,
+                  value: storyPhotoUrls[i]
+                });
+              }
+            }
+            
+            // Add epilogue_photo if it exists (last photo)
+            if (storyPhotoUrls.length > 1) {
+              propertiesToUse.push({
+                name: "epilogue_photo",
+                value: storyPhotoUrls[storyPhotoUrls.length - 1]
+              });
+            }
+          } else {
+            // If no authors_note_photo in properties, map photos directly to chapters
+            // Start from chapter_1_photo for the first photo
+            for (let i = 0; i < storyPhotoUrls.length - 1; i++) {
+              if (storyPhotoUrls[i]) {
+                propertiesToUse.push({
+                  name: `chapter_${i+1}_photo`,
+                  value: storyPhotoUrls[i]
+                });
+              }
+            }
+            
+            // Add epilogue_photo if it exists (last photo)
+            if (storyPhotoUrls.length > 0) {
+              propertiesToUse.push({
+                name: "epilogue_photo",
+                value: storyPhotoUrls[storyPhotoUrls.length - 1]
+              });
             }
           }
         }
-      });
+      } catch (error) {
+        console.error("Error parsing story photos:", error);
+        // If there's an error parsing, keep the original properties
+      }
     }
   
     // 4. Append all remaining properties to the text.
-    textToCopy += remainingProperties
+    textToCopy += propertiesToUse
       .map((prop) => `${prop.name}: ${prop.value}`)
       .join("\n");
   
@@ -1183,6 +1232,12 @@ const OrdersPage = () => {
                           <br />
                           {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
                           <br />
+                          {order?.shipping_address?.city && (
+                            <>
+                              {order.shipping_address.city}
+                              <br />
+                            </>
+                          )}
                           {/* Show phone or "N/A" */}
                           <a
                             href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}`}
