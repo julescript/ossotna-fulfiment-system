@@ -6,7 +6,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        <title>Ossotna Dashboard</title>
+        <title>Ossotna Fulfillment System</title>
       </Head>
       <main className="font-sans">
         <Component {...pageProps} />

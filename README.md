@@ -1,4 +1,8 @@
-# Getting Started
+# Ossotna Fulfillment System
+
+A comprehensive system for managing Ossotna's order fulfillment process.
+
+## Getting Started
 
 First, run the development server:
 

@@ -1,6 +1,7 @@
 {
-  "name": "ossotna-dashboard",
+  "name": "ossotna-fulfillment-system",
   "version": "0.1.0",
+  "description": "Ossotna fulfillment system",
   "private": true,
   "scripts": {
     "dev": "node server.js",

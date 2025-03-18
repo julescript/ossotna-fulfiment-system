@@ -947,7 +947,8 @@ const OrdersPage = () => {
   };
 
   const handleSaveMilestoneDate = (orderId, milestoneDate) => {
-    console.log("handleSaveMetafield", orderId, milestoneDate)
+    console.log("handleSaveMilestoneDate", orderId, milestoneDate);
+    // Save to the metafield
     handleSaveMetafield(orderId, "story-date", milestoneDate);
   };
 
@@ -972,9 +973,7 @@ const OrdersPage = () => {
     const metafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-date"
     );
-    const property = order.line_items[0].properties.find(
-      (prop) => prop.name === "milestone_date" // Fixed typo here
-    );
+    // We don't need to check the property here, just if the state matches the metafield
     if (!metafield?.value) return false; // Metafield is empty or doesn't exist
     return milestoneDates[order.id] === metafield.value;
   };
@@ -1763,14 +1762,80 @@ const OrdersPage = () => {
                             {/* Load Milestone Date */}
                             <button
                               onClick={() => {
-                                const property = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "milestone date"
+                                console.log("Load Milestone Date button clicked");
+                                console.log("Selected Order:", selectedOrder);
+                                console.log("Order Properties:", selectedOrder.line_items[0].properties);
+                                
+                                // Check if story type is mother
+                                const storyType = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "story-type"
                                 );
-                                const value = property?.value || "";
-                                setMilestoneDates((prev) => ({
-                                  ...prev,
-                                  [selectedOrder.id]: value,
-                                }));
+                                console.log("Story Type:", storyType);
+                                
+                                // Check all property names to help debug
+                                const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
+                                console.log("All property names:", propertyNames);
+                                
+                                if (storyType?.value === "mother") {
+                                  console.log("This is a mother story type");
+                                  // Get story-language property or default to 'en'
+                                  const languageProp = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "story-language"
+                                  );
+                                  const language = languageProp?.value || "en";
+                                  
+                                  let milestoneValue = "A Mother's Story";
+                                  
+                                  // Translate based on language
+                                  if (language === "ar") {
+                                    milestoneValue = "قصّة أمّ";
+                                  } else if (language === "fr") {
+                                    milestoneValue = "L'histoire d'une mère";
+                                  }
+                                  
+                                  // Force update the DOM by using a timeout
+                                  setTimeout(() => {
+                                    setMilestoneDates((prev) => ({
+                                      ...prev,
+                                      [selectedOrder.id]: milestoneValue,
+                                    }));
+                                  }, 0);
+                                  
+                                  // Also update the input field directly for immediate feedback
+                                  const inputField = document.getElementById("milestone-date") as HTMLInputElement;
+                                  if (inputField) {
+                                    inputField.value = milestoneValue;
+                                  }
+                                } else {
+                                  // Default behavior for non-mother story types
+                                  // Try all possible property name variations
+                                  const possibleNames = ["milestone_date", "milestone date", "milestone-date"];
+                                  let value = "";
+                                  
+                                  for (const name of possibleNames) {
+                                    const property = selectedOrder.line_items[0].properties.find(
+                                      (prop) => prop.name === name
+                                    );
+                                    if (property?.value) {
+                                      value = property.value;
+                                      break;
+                                    }
+                                  }
+                                  
+                                  // Force update the DOM by using a timeout
+                                  setTimeout(() => {
+                                    setMilestoneDates((prev) => ({
+                                      ...prev,
+                                      [selectedOrder.id]: value,
+                                    }));
+                                  }, 0);
+                                  
+                                  // Also update the input field directly for immediate feedback
+                                  const inputField = document.getElementById("milestone-date") as HTMLInputElement;
+                                  if (inputField) {
+                                    inputField.value = value;
+                                  }
+                                }
                               }}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
                               title="Load Milestone Date"
@@ -1821,14 +1886,63 @@ const OrdersPage = () => {
                             {/* Load Story Title */}
                             <button
                               onClick={() => {
-                                const property = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "title"
+                                console.log("Load Story Title button clicked");
+                                console.log("Selected Order:", selectedOrder);
+                                console.log("Order Properties:", selectedOrder.line_items[0].properties);
+                                
+                                // Check if story type is mother
+                                const storyType = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "story-type"
                                 );
-                                const value = property?.value || "";
-                                setStoryTitles((prev) => ({
-                                  ...prev,
-                                  [selectedOrder.id]: value,
-                                }));
+                                console.log("Story Type:", storyType);
+                                
+                                // Check all property names to help debug
+                                const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
+                                console.log("All property names:", propertyNames);
+                                
+                                if (storyType?.value === "mother") {
+                                  console.log("This is a mother story type");
+                                  // For mother story, use mom_name from product properties
+                                  const momNameProp = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "mom_name"
+                                  );
+                                  console.log("Mom Name Property:", momNameProp);
+                                  const momName = momNameProp?.value || "";
+                                  
+                                  // Force update the DOM by using a timeout
+                                  setTimeout(() => {
+                                    setStoryTitles((prev) => ({
+                                      ...prev,
+                                      [selectedOrder.id]: momName,
+                                    }));
+                                  }, 0);
+                                  
+                                  // Also update the input field directly for immediate feedback
+                                  const inputField = document.getElementById("story-title") as HTMLInputElement;
+                                  if (inputField) {
+                                    inputField.value = momName;
+                                  }
+                                } else {
+                                  // Default behavior for non-mother story types
+                                  const property = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "title"
+                                  );
+                                  const value = property?.value || "";
+                                  
+                                  // Force update the DOM by using a timeout
+                                  setTimeout(() => {
+                                    setStoryTitles((prev) => ({
+                                      ...prev,
+                                      [selectedOrder.id]: value,
+                                    }));
+                                  }, 0);
+                                  
+                                  // Also update the input field directly for immediate feedback
+                                  const inputField = document.getElementById("story-title") as HTMLInputElement;
+                                  if (inputField) {
+                                    inputField.value = value;
+                                  }
+                                }
                               }}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
                               title="Load Story Title"
@@ -1879,33 +1993,83 @@ const OrdersPage = () => {
                             {/* Load Dedication Line */}
                             <button
                               onClick={() => {
-                                const property = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "dedication_line"
+                                console.log("Load Dedication Line button clicked");
+                                console.log("Selected Order:", selectedOrder);
+                                console.log("Order Properties:", selectedOrder.line_items[0].properties);
+                                
+                                // Check if story type is mother
+                                const storyType = selectedOrder.line_items[0].properties.find(
+                                  (prop) => prop.name === "story-type"
                                 );
-                                let value = property?.value || "";
-
-                                if (!value) {
-                                  // Get their_name and your_name from order properties
-                                  const theirNameProperty = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "their_name"
+                                console.log("Story Type:", storyType);
+                                
+                                // Check all property names to help debug
+                                const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
+                                console.log("All property names:", propertyNames);
+                                
+                                if (storyType?.value === "mother") {
+                                  console.log("This is a mother story type");
+                                  // For mother story, use "By {kids_name}"
+                                  const kidsNameProp = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "kids_name"
                                   );
-                                  const yourNameProperty = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "your_name"
+                                  console.log("Kids Name Property:", kidsNameProp);
+                                  const kidsName = kidsNameProp?.value || "";
+                                  
+                                  const dedicationValue = kidsName ? `By ${kidsName}` : "";
+                                  
+                                  // Force update the DOM by using a timeout
+                                  setTimeout(() => {
+                                    setDedicationLines((prev) => ({
+                                      ...prev,
+                                      [selectedOrder.id]: dedicationValue,
+                                    }));
+                                  }, 0);
+                                  
+                                  // Also update the input field directly for immediate feedback
+                                  const inputField = document.getElementById("dedication-line") as HTMLInputElement;
+                                  if (inputField) {
+                                    inputField.value = dedicationValue;
+                                  }
+                                } else {
+                                  // Default behavior for non-mother story types
+                                  const property = selectedOrder.line_items[0].properties.find(
+                                    (prop) => prop.name === "dedication_line"
                                   );
+                                  let value = property?.value || "";
 
-                                  const theirName = theirNameProperty?.value || "";
-                                  const yourName = yourNameProperty?.value || "";
+                                  if (!value) {
+                                    // Get their_name and your_name from order properties
+                                    const theirNameProperty = selectedOrder.line_items[0].properties.find(
+                                      (prop) => prop.name === "their_name"
+                                    );
+                                    const yourNameProperty = selectedOrder.line_items[0].properties.find(
+                                      (prop) => prop.name === "your_name"
+                                    );
 
-                                  // Concatenate if both names exist
-                                  if (theirName && yourName) {
-                                    value = `For ${theirName}, By ${yourName}`;
+                                    const theirName = theirNameProperty?.value || "";
+                                    const yourName = yourNameProperty?.value || "";
+
+                                    // Concatenate if both names exist
+                                    if (theirName && yourName) {
+                                      value = `For ${theirName}, By ${yourName}`;
+                                    }
+                                  }
+
+                                  // Force update the DOM by using a timeout
+                                  setTimeout(() => {
+                                    setDedicationLines((prev) => ({
+                                      ...prev,
+                                      [selectedOrder.id]: value,
+                                    }));
+                                  }, 0);
+                                  
+                                  // Also update the input field directly for immediate feedback
+                                  const inputField = document.getElementById("dedication-line") as HTMLInputElement;
+                                  if (inputField) {
+                                    inputField.value = value;
                                   }
                                 }
-
-                                setDedicationLines((prev) => ({
-                                  ...prev,
-                                  [selectedOrder.id]: value,
-                                }));
                               }}
                               className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
                               title="Load Dedication Line"
