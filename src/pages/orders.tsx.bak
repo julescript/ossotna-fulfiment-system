@@ -1160,37 +1160,55 @@ const OrdersPage = () => {
   // 4) Render
   return (
     <>
-      <div className="p-4 md:p-6 bg-gray-900 min-h-screen relative">
+      <div className="md:p-8 p-4 bg-gray-900 min-h-screen relative">
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center mb-4">
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mr-2" />
         </div>
         
         {/* Mobile Navigation - Fixed at top */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex flex-col items-center border-b border-gray-500">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 flex flex-col items-center">
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mb-2" />
         </div>
         
-        {/* Mobile Footer Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-800 p-4 flex justify-center border-t border-gray-500">
+        {/* Mobile Navigation Footer */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-800 p-2 flex justify-around items-center">
           <button
             onClick={() => setIsCameraOpen(true)}
-            className="p-4 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 focus:outline-none w-full flex items-center justify-center gap-2"
+            className="p-2 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 focus:outline-none flex flex-col items-center"
             title="Scan Order QR Code"
           >
             <span className="material-symbols-outlined">qr_code_scanner</span>
-            <span className="font-medium">Scan Order Label</span>
+            <span className="text-xs mt-1">Scan</span>
+          </button>
+          
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="p-2 bg-gray-700 text-white rounded-full shadow-lg hover:bg-gray-600 focus:outline-none flex flex-col items-center"
+            title="Back to Top"
+          >
+            <span className="material-symbols-outlined">arrow_upward</span>
+            <span className="text-xs mt-1">Top</span>
+          </button>
+          
+          <button
+            onClick={() => setIsImageUploadModalOpen(true)}
+            className="p-2 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 focus:outline-none flex flex-col items-center"
+            title="Upload Custom Images"
+          >
+            <span className="material-symbols-outlined">add_photo_alternate</span>
+            <span className="text-xs mt-1">Upload</span>
           </button>
         </div>
         
         {/* Spacer for fixed mobile navigation */}
-        {/* <div className="md:hidden h-16"></div> */}
+        <div className="md:hidden h-16"></div>
         
-        {/* Spacer for fixed mobile footer */}
-        <div className="md:hidden h-14 mb-4"></div>
+        {/* Spacer for fixed mobile navigation footer */}
+        <div className="md:hidden h-20"></div>
 
         {/* Limit Selector */}
-        <div className="mb-4 flex items-center gap-4">
+        <div className="mb-6 flex items-center gap-4">
           <label htmlFor="limit" className="text-white">
             Orders Fetched
           </label>
@@ -1834,7 +1852,7 @@ const OrdersPage = () => {
             className={`relative bg-white dark:bg-gray-800 rounded shadow-lg ${
               /* Make full screen without padding on mobile, retain original size on desktop */
               "w-full h-full md:w-[90dvw] md:h-[90dvh] " +
-              (isMobile() ? "p-0 pb-16" : "p-0")
+              (isMobile() ? "p-0" : "p-0")
               }`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1906,36 +1924,6 @@ const OrdersPage = () => {
                       qr={generatedQRCodes[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
                     />
-                    
-                    {/* Story Type Display - Both Mobile and Desktop */}
-                    <div className="w-full px-4 py-2 flex justify-center mb-4">
-                      {(() => {
-                        const storyType = selectedOrder.line_items[0].properties.find(
-                          (prop) => prop.name === "story-type"
-                        )?.value || "Standard";
-                        
-                        // Define color based on story type
-                        let bgColor = "bg-gray-500";
-                        let textColor = "text-white";
-                        
-                        if (storyType === "mother") {
-                          bgColor = "bg-pink-500";
-                        } else if (storyType === "father") {
-                          bgColor = "bg-blue-500";
-                        } else if (storyType === "grandmother") {
-                          bgColor = "bg-purple-500";
-                        } else if (storyType === "grandfather") {
-                          bgColor = "bg-indigo-500";
-                        }
-                        
-                        return (
-                          <div className={`${bgColor} ${textColor} px-4 py-2 rounded-full font-medium text-sm inline-flex items-center`}>
-                            <span className="material-symbols-outlined mr-1">auto_stories</span>
-                            {storyType.charAt(0).toUpperCase() + storyType.slice(1)} Story
-                          </div>
-                        );
-                      })()}
-                    </div>
 
                     <div className="p-4 pt-0 w-full md:hidden">
                       <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -1958,7 +1946,64 @@ const OrdersPage = () => {
                       <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{dedicationLines[selectedOrder.id] || ""}</div>
                     </div>
 
-                    {/* Mobile subdomain section removed from here, moved to fixed footer */}
+                    {/* Mobile URL section - hidden, replaced by fixed footer */}
+                    <div className="p-4 pt-0 w-full md:hidden hidden">
+                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                        URL
+                      </label>
+                      <div className="flex flex-row items-center gap-2">
+                        <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{subdomainValue(selectedOrder)}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Fixed Mobile Footer for Order Details */}
+                    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-800 p-3 border-t border-gray-700 shadow-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-grow">
+                          <label htmlFor="mobile-subdomain" className="block text-xs font-medium text-gray-400 mb-1">
+                            URL
+                          </label>
+                          <div className="p-2 bg-gray-700 rounded text-white text-sm overflow-x-auto whitespace-nowrap">
+                            {subdomainValue(selectedOrder)}
+                          </div>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2">
+                          {/* Copy Password & Open Subdomain */}
+                          <button
+                            className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopySubdomainOpenNFC(selectedOrder);
+                            }}
+                            title="Copy Password & Open Subdomain"
+                            aria-label="Copy Password & Open Subdomain"
+                          >
+                            <span className="material-symbols-outlined">link</span>
+                          </button>
+                          
+                          {/* Compare Subdomain via QR Code */}
+                          <button
+                            className="p-2 bg-blue-700 hover:bg-blue-600 text-white rounded-full flex items-center justify-center"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsSubdomainCheckOpen(true);
+                            }}
+                            title="Compare Subdomain via QR Code"
+                            aria-label="Compare Subdomain via QR Code"
+                          >
+                            <span className="material-symbols-outlined">compare_arrows</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Spacer for fixed mobile footer in order details */}
+                    <div className="md:hidden h-24 w-full"></div>
+
+                      </div>
+                    </div>
 
                     {/* Column 2: Subdomain Input & Actions */}
                     <div className="col-span-2 text-gray-800 dark:text-gray-300 p-4 md:p-0 hidden md:block">
@@ -2369,46 +2414,6 @@ const OrdersPage = () => {
                     </div>
 
                   </div>
-
-                  {/* Mobile Fixed Footer for Subdomain Actions */}
-                  <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-800 p-2 border-t border-gray-700">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-grow">
-                        <div className="text-xs font-medium text-gray-400 mb-1">SUBDOMAIN</div>
-                        <div className="p-2 pl-2 rounded bg-gray-700 text-white text-sm truncate">{subdomainValue(selectedOrder)}</div>
-                      </div>
-                      <div className="flex gap-1">
-                        {/* Copy Password & Open Subdomain */}
-                        <button
-                          className="p-4 bg-gray-700 hover:bg-gray-900 text-white rounded"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopySubdomainOpenNFC(selectedOrder);
-                          }}
-                          title="Copy Password & Open Subdomain"
-                          aria-label="Copy Password & Open Subdomain"
-                        >
-                          <span className="material-symbols-outlined">link</span>
-                        </button>
-
-                        {/* Compare Subdomain via QR Code */}
-                        <button
-                          className="p-4 bg-blue-700 hover:bg-blue-900 text-white rounded"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsSubdomainCheckOpen(true);
-                          }}
-                          title="Compare Subdomain via QR Code"
-                          aria-label="Compare Subdomain via QR Code"
-                        >
-                          <span className="material-symbols-outlined">compare_arrows</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Spacer for fixed mobile footer in modal */}
-                  <div className="md:hidden h-16 mb-2"></div>
 
                   {/* LEFT HALF: Scrollable list of filtered properties */}
                   <div className="w-full md:w-1/2 md:overflow-y-auto p-6 flex flex-col align-center justify-start relative">
