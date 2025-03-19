@@ -1674,7 +1674,17 @@ const OrdersPage = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 w-11/12 max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold dark:text-white">Generate Story for {selectedOrder.name}</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold dark:text-white">{selectedOrder.name} | Generate Story</h2>
+                  <button
+                    className="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors"
+                    onClick={() => {
+                      setIsModalOpen(true);
+                    }}
+                  >
+                    View Order Details
+                  </button>
+                </div>
                 <button
                   onClick={() => {
                     setIsStoryModalOpen(false);
@@ -1689,7 +1699,7 @@ const OrdersPage = () => {
               <div className="flex flex-col md:flex-row gap-4 flex-grow overflow-hidden">
                 {/* Left side - Clipboard Content */}
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  <h3 className="text-lg font-semibold mb-2 dark:text-white">Order Properties (Markdown)</h3>
+                  <h6 className="text-sm font-light mb-2 dark:text-white">Order Properties</h6>
                   <div className="relative flex-grow">
                     <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">markdown</div>
                     <textarea
@@ -1704,7 +1714,7 @@ const OrdersPage = () => {
                 
                 {/* Right side - Generated Story */}
                 <div className="flex-1 flex flex-col overflow-hidden">
-                  <h3 className="text-lg font-semibold mb-2 dark:text-white">Generated Story (TypeScript)</h3>
+                  <h6 className="text-sm font-light mb-2 dark:text-white">Generated Story</h6>
                   <div className="relative flex-grow">
                     <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">typescript</div>
                     {isGeneratingStory && (
@@ -1781,7 +1791,10 @@ const OrdersPage = () => {
         // Backdrop
         <div
           className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center"
-          onClick={handleCloseModal}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsModalOpen(false);
+          }}
         >
           {/* Outer container (stopPropagation so clicks inside don't close) */}
           <div
@@ -1800,8 +1813,17 @@ const OrdersPage = () => {
               <div className="block md:sticky top-0 p-4 md:p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between relative">
                 <div className="flex flex-col flex-1 pr-10">
                   <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
-                  {/* Add more to the header here if desired */}
-                  {selectedOrder.line_items[0].variant_title}
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-3 py-1 bg-purple-500 text-white rounded-md text-sm hover:bg-purple-600 transition-colors"
+                      onClick={() => {
+                        setIsStoryModalOpen(true);
+                      }}
+                    >
+                      Generate Story
+                    </button>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{selectedOrder.line_items[0].variant_title}</span>
+                  </div>
                 </div>
 
                 {/* Story Status - Move below on mobile */}
@@ -1828,7 +1850,10 @@ const OrdersPage = () => {
                 </div>
 
                 <button
-                  onClick={handleCloseModal}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsModalOpen(false);
+                  }}
                   className="text-gray-500 hover:text-gray-700 z-10 absolute top-4 right-4 md:top-6 md:right-6 p-2 rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 flex items-center justify-center h-8 w-8"
                 >
                   <span className="material-symbols-outlined text-lg">close</span>
