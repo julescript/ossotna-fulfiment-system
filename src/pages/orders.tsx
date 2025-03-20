@@ -61,6 +61,9 @@ const OrdersPage = () => {
   const [clipboardContent, setClipboardContent] = useState("");
   const [generatedStory, setGeneratedStory] = useState("");
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
+  const [isNfcWriteModalOpen, setIsNfcWriteModalOpen] = useState(false);
+  const [nfcUrl, setNfcUrl] = useState("");
+  const [isNfcWriting, setIsNfcWriting] = useState(false);
 
   // 1) Add storyStatuses state & statusOptions array
   const [storyStatuses, setStoryStatuses] = useState({});
@@ -600,20 +603,32 @@ const OrdersPage = () => {
     }
   };
 
-  // Copy password and open the subdomain in a new tab
+  // Copy domain URL and open NFC modal on mobile
   const handleCopySubdomainOpenNFC = (order) => {
-    // 2) Open the subdomain
+    // Get the subdomain from metafields
     const storyUrlMetafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-url"
     );
+    
     if (storyUrlMetafield?.value) {
-      const url = `${storyUrlMetafield.value}.ossotna.com`;
-      navigator.clipboard.writeText(url).then(
-        () => toast.success("domain copied to clipboard!", { autoClose: 2000 }),
-        (err) => toast.error("domain to copy password!", { autoClose: 2000 })
-      );
+      const subdomain = storyUrlMetafield.value;
+      const domainOnly = `${subdomain}.ossotna.com`;
+      const fullUrl = `https://${domainOnly}`;
+      
+      if (isMobile()) {
+        // For mobile, open the NFC write modal with the complete URL
+        console.log("Setting NFC URL from handleCopySubdomainOpenNFC:", fullUrl);
+        setNfcUrl(fullUrl);
+        setIsNfcWriteModalOpen(true);
+      } else {
+        // For desktop, just copy to clipboard (domain only, no protocol)
+        navigator.clipboard.writeText(domainOnly).then(
+          () => toast.success("Domain copied to clipboard!", { autoClose: 2000 }),
+          (err) => toast.error("Failed to copy domain!", { autoClose: 2000 })
+        );
+      }
     } else {
-      toast.warn("No story URL available to open.", { autoClose: 2000 });
+      toast.warn("No story URL available.", { autoClose: 2000 });
     }
   };
 
@@ -1049,9 +1064,15 @@ const OrdersPage = () => {
    * Handler for scanning the QR code and comparing subdomains.
    * @param {Object} data - The data returned from the QR scanner.
    */
+  // State to track if scanner is paused after mismatch
+  const [isScannerPaused, setIsScannerPaused] = useState(false);
+
   const handleSubdomainScan = (detectedCodes) => {
-    if (detectedCodes && detectedCodes.length > 0) {
+    if (detectedCodes && detectedCodes.length > 0 && !isScannerPaused) {
       try {
+        // Pause the scanner to prevent multiple scans
+        setIsScannerPaused(true);
+        
         const scannedText = detectedCodes[0].rawValue.trim();
 
         // Attempt to parse the scanned text as a URL
@@ -1070,12 +1091,18 @@ const OrdersPage = () => {
 
         if (scannedSubdomain.toLowerCase() === currentSubdomain.toLowerCase()) {
           toast.success("Subdomain matches!", { autoClose: 2000 });
+          // Close the scanner modal and open NFC modal
+          setIsSubdomainCheckOpen(false);
+          setIsScannerPaused(false); // Reset for next time
+          // Open NFC modal with the current subdomain
+          const fullUrl = `https://${currentSubdomain}.ossotna.com`;
+          setNfcUrl(fullUrl);
+          console.log("Setting NFC URL to:", fullUrl);
+          setIsNfcWriteModalOpen(true);
         } else {
           toast.error("Subdomain does not match.", { autoClose: 2000 });
+          // Keep scanner paused until user clicks Scan Again
         }
-
-        // Close the scanner modal after processing
-        setIsSubdomainCheckOpen(false);
       } catch (error) {
         console.error("Error processing scanned QR code:", error);
         toast.error("Invalid QR code data.", { autoClose: 2000 });
@@ -1091,7 +1118,8 @@ const OrdersPage = () => {
   const handleSubdomainError = (err) => {
     console.error("QR Scanner Error:", err);
     toast.error("Failed to access camera for scanning.", { autoClose: 2000 });
-    setIsSubdomainCheckOpen(false);
+    // Pause the scanner on error instead of closing it
+    setIsScannerPaused(true);
   };
 
   // Handler to open Shopify order page
@@ -1895,7 +1923,7 @@ const OrdersPage = () => {
 
               {/* MAIN CONTENT: Adjusted for Responsiveness */}
               <div className="flex-1 overflow-hidden p-0">
-                <div className={`flex flex-col md:flex-row h-full overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
+                <div className={`flex flex-col md:flex-row h-full overflow-hidden overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
 
                   {/* RIGHT HALF: Preview Cards */}
                   <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-0 md:gap-6 md:overflow-y-auto`}>
@@ -1920,12 +1948,10 @@ const OrdersPage = () => {
                         
                         if (storyType === "mother") {
                           bgColor = "bg-pink-500";
-                        } else if (storyType === "father") {
+                        } else if (storyType === "love") {
+                          bgColor = "bg-red-500";
+                        } else if (storyType === "friendship") {
                           bgColor = "bg-blue-500";
-                        } else if (storyType === "grandmother") {
-                          bgColor = "bg-purple-500";
-                        } else if (storyType === "grandfather") {
-                          bgColor = "bg-indigo-500";
                         }
                         
                         return (
@@ -2372,38 +2398,26 @@ const OrdersPage = () => {
 
                   {/* Mobile Fixed Footer for Subdomain Actions */}
                   <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-800 p-2 border-t border-gray-700">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex-grow">
+                    <div className="flex flex-col gap-2">
+                      <div className="w-full">
                         <div className="text-xs font-medium text-gray-400 mb-1">SUBDOMAIN</div>
                         <div className="p-2 pl-2 rounded bg-gray-700 text-white text-sm truncate">{subdomainValue(selectedOrder)}</div>
                       </div>
-                      <div className="flex gap-1">
-                        {/* Copy Password & Open Subdomain */}
-                        <button
-                          className="p-4 bg-gray-700 hover:bg-gray-900 text-white rounded"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopySubdomainOpenNFC(selectedOrder);
-                          }}
-                          title="Copy Password & Open Subdomain"
-                          aria-label="Copy Password & Open Subdomain"
-                        >
-                          <span className="material-symbols-outlined">link</span>
-                        </button>
-
-                        {/* Compare Subdomain via QR Code */}
-                        <button
-                          className="p-4 bg-blue-700 hover:bg-blue-900 text-white rounded"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsSubdomainCheckOpen(true);
-                          }}
-                          title="Compare Subdomain via QR Code"
-                          aria-label="Compare Subdomain via QR Code"
-                        >
-                          <span className="material-symbols-outlined">compare_arrows</span>
-                        </button>
-                      </div>
+                      
+                      {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
+                      <button
+                        className="p-4 bg-blue-700 hover:bg-blue-900 text-white rounded flex items-center justify-center gap-2 w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Open QR code scanner first
+                          setIsSubdomainCheckOpen(true);
+                        }}
+                        title="Write URL to NFC Tag"
+                        aria-label="Write URL to NFC Tag"
+                      >
+                        <span className="material-symbols-outlined">nfc</span>
+                        <span className="font-medium">Write to NFC Tag</span>
+                      </button>
                     </div>
                   </div>
 
@@ -2767,6 +2781,7 @@ const OrdersPage = () => {
 
               {/* QR Scanner with better support for all QR code types */}
               <div className="relative" style={{ width: '300px', height: '300px' }}>
+                {/* Only render the Scanner component when it's actively needed */}
                 <Scanner
                   onScan={handleSubdomainScan}
                   onError={handleSubdomainError}
@@ -2775,16 +2790,182 @@ const OrdersPage = () => {
                   styles={{ container: { width: '100%', height: '100%' } }}
                 />
               </div>
+              
+              {/* Scan Again button - only shown when scanner is paused */}
+              {isScannerPaused && (
+                <button
+                  onClick={() => setIsScannerPaused(false)}
+                  className="w-full p-3 mt-2 bg-green-600 hover:bg-green-700 text-white rounded"
+                  title="Scan Again"
+                >
+                  SCAN AGAIN
+                </button>
+              )}
             </div>
 
-            {/* Close Button */}
-            <button
-              onClick={() => setIsSubdomainCheckOpen(false)}
-              className="w-full p-4 mt-2 bg-gray-900 text-white-500 hover:text-white-700"
-              title="Close Scanner"
-            >
-              CLOSE
-            </button>
+            <div className="flex w-full gap-2 mt-2">
+              {/* Skip Button */}
+              <button
+                onClick={() => {
+                  setIsSubdomainCheckOpen(false);
+                  setIsScannerPaused(false); // Reset for next time
+                  // Open NFC modal with the current subdomain
+                  const currentSubdomain = subdomainValue(selectedOrder);
+                  const fullUrl = `https://${currentSubdomain}.ossotna.com`;
+                  setNfcUrl(fullUrl);
+                  console.log("Setting NFC URL to:", fullUrl);
+                  setIsNfcWriteModalOpen(true);
+                }}
+                className="w-1/2 p-4 bg-blue-700 hover:bg-blue-800 text-white rounded"
+                title="Skip to NFC"
+              >
+                SKIP TO NFC
+              </button>
+              
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setIsSubdomainCheckOpen(false);
+                  setIsScannerPaused(false); // Reset for next time
+                }}
+                className="w-1/2 p-4 bg-gray-900 hover:bg-gray-800 text-white rounded"
+                title="Close Scanner"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* NFC Writing Modal for Android */}
+      {isNfcWriteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+          <div className="flex flex-col items-center w-11/12 max-w-md">
+            <div className="relative bg-white dark:bg-gray-800 p-6 rounded-md w-full">
+              <h3 className="text-lg font-medium text-center mb-4 text-gray-900 dark:text-white">Write URL to NFC Tag</h3>
+              
+              <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
+                On Android, you can write this URL to an NFC tag. Place your phone near an NFC tag when ready.
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">URL to write:</label>
+                <input 
+                  type="text" 
+                  value={nfcUrl}
+                  onChange={(e) => setNfcUrl(e.target.value)}
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={isNfcWriting}
+                />
+              </div>
+              
+              <div className="flex flex-col items-center justify-center mb-4">
+                <div className={`w-24 h-24 mb-4 flex items-center justify-center rounded-full transition-all duration-500 ${isNfcWriting ? 'bg-blue-500 dark:bg-blue-600 shadow-lg shadow-blue-500/50 animate-pulse' : 'bg-blue-100 dark:bg-blue-900'}`}>
+                  <span className={`material-symbols-outlined text-4xl transition-all duration-500 ${isNfcWriting ? 'text-white animate-bounce' : 'text-blue-600 dark:text-blue-300'}`}>nfc</span>
+                </div>
+                <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+                  {isNfcWriting ? 'Bring your phone close to an NFC tag...' : 'Tap the button below to start NFC writing mode.'}
+                </p>
+              </div>
+              
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    // On Android, this will try to use the Web NFC API
+                    if ('NDEFReader' in window) {
+                      try {
+                        setIsNfcWriting(true);
+                        const ndef = new (window as any).NDEFReader();
+                        
+                        console.log("Starting NFC writing with URL:", nfcUrl);
+                        
+                        // Validate URL format before writing
+                        let urlToWrite = nfcUrl;
+                        if (!urlToWrite.startsWith('https://') && !urlToWrite.startsWith('http://')) {
+                          urlToWrite = 'https://' + urlToWrite;
+                          console.log("URL format corrected to:", urlToWrite);
+                        }
+                        
+                        // Set up a scan listener to detect when a tag is in range
+                        ndef.addEventListener('reading', ({ message, serialNumber }) => {
+                          console.log(`> Serial Number: ${serialNumber}`);
+                          console.log(`> Records: (${message.records.length})`);
+                          console.log(`> Writing URL: ${urlToWrite}`);
+                          
+                          // Write only the URL to the tag
+                          ndef.write({
+                            records: [{ recordType: "url", data: urlToWrite }]
+                          }).then(() => {
+                            setIsNfcWriting(false);
+                            toast.success("URL successfully written to NFC tag!");
+                            setIsNfcWriteModalOpen(false);
+                            
+                            // Update order status to QA Review
+                            if (selectedOrder && selectedOrder.id) {
+                              saveStatusAPI(selectedOrder.id, "QA Review")
+                                .then(() => {
+                                  // Update local state
+                                  setStoryStatuses(prev => ({
+                                    ...prev,
+                                    [selectedOrder.id]: "QA Review"
+                                  }));
+                                  console.log("Order status updated to QA Review");
+                                })
+                                .catch(err => {
+                                  console.error("Failed to update order status:", err);
+                                });
+                            }
+                          }).catch((error) => {
+                            setIsNfcWriting(false);
+                            console.error(error);
+                            toast.error("Failed to write to NFC tag: " + error.message);
+                          });
+                        });
+                        
+                        // Start scanning for NFC tags
+                        ndef.scan().catch((error) => {
+                          setIsNfcWriting(false);
+                          console.error(error);
+                          toast.error("Error scanning for NFC tag: " + error.message);
+                        });
+                        
+                        // Add a timeout to cancel if no tag is found after 30 seconds
+                        setTimeout(() => {
+                          if (isNfcWriting) {
+                            setIsNfcWriting(false);
+                            toast.error("NFC operation timed out. Please try again.");
+                          }
+                        }, 30000);
+                        
+                      } catch (error: any) {
+                        setIsNfcWriting(false);
+                        console.error(error);
+                        toast.error("Error accessing NFC: " + error.message);
+                      }
+                    } else {
+                      toast.error("NFC is not supported on this device or browser");
+                    }
+                  }}
+                  disabled={isNfcWriting}
+                  className={`w-full p-3 text-white rounded-md font-medium transition-all duration-300 ${isNfcWriting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  {isNfcWriting ? 'Writing to NFC Tag...' : 'Start NFC Writing'}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    if (!isNfcWriting) {
+                      setIsNfcWriteModalOpen(false);
+                    }
+                  }}
+                  disabled={isNfcWriting}
+                  className={`w-full p-3 rounded-md font-medium transition-all duration-300 ${isNfcWriting ? 'bg-gray-400 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'}`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
