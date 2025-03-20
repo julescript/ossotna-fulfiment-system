@@ -233,3 +233,22 @@ export const downloadImagesAsZipAPI = async (folderName, imageUrls) => {
     // Return the binary .zip blob to the caller
     return response.blob();
 };
+
+/**
+ * Mark an order as ready for delivery by creating a fulfillment in Shopify
+ * @param orderId - The ID of the order to mark as ready for delivery
+ */
+export const markOrderReadyForDeliveryAPI = async (orderId: string) => {
+  const response = await fetch("/api/shopify/fulfillment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || "Failed to mark order as ready for delivery");
+  }
+  
+  return response.json();
+};

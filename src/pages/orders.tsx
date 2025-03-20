@@ -20,6 +20,7 @@ import {
   downloadImagesAsZipAPI,
   saveMetafieldAPI,
   saveStatusAPI,
+  markOrderReadyForDeliveryAPI,
 } from "../services/orderService";
 import TwoFramesPreview from "@/components/CardsPreview";
 import Image from "next/image";
@@ -64,6 +65,14 @@ const OrdersPage = () => {
   const [isNfcWriteModalOpen, setIsNfcWriteModalOpen] = useState(false);
   const [nfcUrl, setNfcUrl] = useState("");
   const [isNfcWriting, setIsNfcWriting] = useState(false);
+  const [isNfcVerifying, setIsNfcVerifying] = useState(false);
+  const [nfcWriteAttempts, setNfcWriteAttempts] = useState(0);
+  const [lastReadUrl, setLastReadUrl] = useState("");
+  const [showDoneButton, setShowDoneButton] = useState(false);
+  const [verificationCompleted, setVerificationCompleted] = useState(false);
+  const [isDeliveryScanOpen, setIsDeliveryScanOpen] = useState(false);
+  const [currentScanOrder, setCurrentScanOrder] = useState(null);
+  const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
 
   // 1) Add storyStatuses state & statusOptions array
   const [storyStatuses, setStoryStatuses] = useState({});
@@ -619,6 +628,9 @@ const OrdersPage = () => {
         // For mobile, open the NFC write modal with the complete URL
         console.log("Setting NFC URL from handleCopySubdomainOpenNFC:", fullUrl);
         setNfcUrl(fullUrl);
+        setNfcWriteAttempts(0); // Reset attempt counter when opening modal
+        setIsNfcVerifying(false); // Reset verification state
+        setVerificationCompleted(false); // Reset verification completed flag
         setIsNfcWriteModalOpen(true);
       } else {
         // For desktop, just copy to clipboard (domain only, no protocol)
@@ -654,7 +666,8 @@ const OrdersPage = () => {
       // Otherwise, convert price to a number if provided.
       if (customItemName && customItemPrice) {
         // Basic parse; you can add more validation if needed
-        customItemPrice = parseFloat(customItemPrice) || 0;
+        const parsedPrice = parseFloat(customItemPrice) || 0;
+        customItemPrice = parsedPrice.toString();
       }
 
       // 1) Destructure fields from original order:
@@ -753,12 +766,13 @@ const OrdersPage = () => {
       // If the user canceled or left blank, we won't add anything.
       // Otherwise, convert price to a number if provided.
       let customItems = [];
+      let numericPrice = 0;
       if (customItemName && customItemPrice) {
-        customItemPrice = parseFloat(customItemPrice);
-        if (!isNaN(customItemPrice) && customItemPrice > 0) {
+        numericPrice = parseFloat(customItemPrice);
+        if (!isNaN(numericPrice) && numericPrice > 0) {
           customItems.push({
             title: customItemName,
-            price: customItemPrice.toFixed(2), // Ensure two decimal places as string
+            price: numericPrice.toFixed(2), // Ensure two decimal places as string
             quantity: 1,
             taxable: false, // Non-physical items typically aren't taxable
             requires_shipping: false, // Non-physical items don't require shipping
@@ -933,11 +947,14 @@ const OrdersPage = () => {
         return;
       }
 
-      customItemPrice = parseFloat(customItemPrice);
-      if (isNaN(customItemPrice) || customItemPrice <= 0) {
+      const parsedPrice = parseFloat(customItemPrice);
+      if (isNaN(parsedPrice) || parsedPrice <= 0) {
         toast.error("Invalid price entered.", { autoClose: 2000 });
         return;
       }
+      
+      // Convert back to string for API compatibility
+      customItemPrice = parsedPrice.toString();
 
       // Call the API to add the custom item
       const response = await fetch("/api/shopify/addCustomItem", {
@@ -947,7 +964,7 @@ const OrdersPage = () => {
           orderId: order.id,
           customItem: {
             title: customItemName,
-            price: customItemPrice.toFixed(2), // Ensure two decimal places
+            price: parsedPrice.toFixed(2), // Ensure two decimal places
           },
         }),
       });
@@ -1098,6 +1115,9 @@ const OrdersPage = () => {
           const fullUrl = `https://${currentSubdomain}.ossotna.com`;
           setNfcUrl(fullUrl);
           console.log("Setting NFC URL to:", fullUrl);
+          setNfcWriteAttempts(0); // Reset attempt counter when opening from QR scan
+          setIsNfcVerifying(false); // Reset verification state
+          setVerificationCompleted(false); // Reset verification completed flag
           setIsNfcWriteModalOpen(true);
         } else {
           toast.error("Subdomain does not match.", { autoClose: 2000 });
@@ -1120,6 +1140,98 @@ const OrdersPage = () => {
     toast.error("Failed to access camera for scanning.", { autoClose: 2000 });
     // Pause the scanner on error instead of closing it
     setIsScannerPaused(true);
+  };
+
+  /**
+   * Handler for scanning order labels to mark as Ready for Delivery
+   * @param {Object} detectedCodes - The QR codes detected by the scanner
+   */
+  const handleDeliveryScan = (detectedCodes) => {
+    if (detectedCodes && detectedCodes.length > 0 && scanStatus === "ready") {
+      try {
+        const data = detectedCodes[0].rawValue;
+        console.log("Delivery scan data:", data);
+        
+        // Assuming the QR code contains a Shopify order URL or ID
+        let orderId;
+        
+        // Try to parse as URL first
+        try {
+          const url = new URL(data);
+          const pathSegments = url.pathname.split('/');
+          orderId = pathSegments[pathSegments.length - 1]; // Extract the last segment as orderId
+        } catch {
+          // If not a URL, use the raw value as the order ID
+          orderId = data.trim();
+        }
+        
+        console.log("Extracted order ID for delivery:", orderId);
+        
+        // Find the order with the extracted orderId
+        const order = orders.find(o => o.id === String(orderId) || o.name === String(orderId));
+        
+        if (order) {
+          // Set current order and loading state
+          setCurrentScanOrder(order);
+          setScanStatus("loading");
+          
+          // Only update the metafield status without creating a fulfillment
+          saveStatusAPI(order.id, "Ready for Delivery")
+            .then(() => {
+              // Update local state
+              setStoryStatuses(prev => ({
+                ...prev,
+                [order.id]: "Ready for Delivery"
+              }));
+              
+              // Show success state
+              setScanStatus("success");
+              
+              // Reset after a delay to allow for the next scan
+              setTimeout(() => {
+                setScanStatus("ready");
+                setCurrentScanOrder(null);
+              }, 2000);
+            })
+            .catch(error => {
+              console.error("Error updating order status:", error);
+              
+              // Show error state
+              setScanStatus("error");
+              
+              // Reset after a delay
+              setTimeout(() => {
+                setScanStatus("ready");
+                setCurrentScanOrder(null);
+              }, 2000);
+            });
+        } else {
+          setScanStatus("error");
+          setCurrentScanOrder({ name: "Unknown Order", error: "Order not found" });
+          setTimeout(() => {
+            setScanStatus("ready");
+            setCurrentScanOrder(null);
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("Error processing delivery QR code:", error);
+        setScanStatus("error");
+        setCurrentScanOrder({ name: "Error", error: "Invalid QR code format" });
+        setTimeout(() => {
+          setScanStatus("ready");
+          setCurrentScanOrder(null);
+        }, 2000);
+      }
+    }
+  };
+  
+  /**
+   * Handler for errors during delivery QR scanning
+   * @param {Error} err - The error encountered
+   */
+  const handleDeliveryError = (err) => {
+    console.error("Error scanning for delivery:", err);
+    toast.error("Failed to access camera for delivery scanning", { autoClose: 2000 });
   };
 
   // Handler to open Shopify order page
@@ -1200,14 +1312,23 @@ const OrdersPage = () => {
         </div>
         
         {/* Mobile Footer Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-800 p-4 flex justify-center border-t border-gray-500">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-700 p-4 flex flex-col gap-3 border-t border-gray-400 shadow-lg">
           <button
             onClick={() => setIsCameraOpen(true)}
-            className="p-4 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 focus:outline-none w-full flex items-center justify-center gap-2"
+            className="p-4 bg-blue-600 text-white rounded-md shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full flex items-center justify-center gap-2 transition-colors border-gray-400 border"
             title="Scan Order QR Code"
           >
             <span className="material-symbols-outlined">qr_code_scanner</span>
-            <span className="font-medium">Scan Order Label</span>
+            <span className="font-medium text-lg">Prepare Order (Scan Label)</span>
+          </button>
+          
+          <button
+            onClick={() => setIsDeliveryScanOpen(true)}
+            className="p-4 bg-green-600 text-white rounded-md shadow-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 w-full flex items-center justify-center gap-2 transition-colors border-gray-400 border"
+            title="Mark as Ready for Delivery"
+          >
+            <span className="material-symbols-outlined">local_shipping</span>
+            <span className="font-medium text-lg">Mark Ready for Delivery</span>
           </button>
         </div>
         
@@ -1259,7 +1380,7 @@ const OrdersPage = () => {
         </div>
 
         {/* Main Table Container */}
-        <div className={`h-full w-full ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
+        <div className={`h-full w-full md:pb-0 pb-44 ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
           <div className="h-full w-full bg-gray-900 flex items-center justify-center">
             <div className="w-full h-full">
               <div className="h-full w-full bg-gray-800 shadow-md rounded-md overflow-hidden border border-gray-600 table-fixed">
@@ -2397,16 +2518,16 @@ const OrdersPage = () => {
                   </div>
 
                   {/* Mobile Fixed Footer for Subdomain Actions */}
-                  <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-800 p-2 border-t border-gray-700">
-                    <div className="flex flex-col gap-2">
+                  <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-700 p-3 border-t border-gray-400 shadow-lg">
+                    <div className="flex flex-col gap-3">
                       <div className="w-full">
-                        <div className="text-xs font-medium text-gray-400 mb-1">SUBDOMAIN</div>
-                        <div className="p-2 pl-2 rounded bg-gray-700 text-white text-sm truncate">{subdomainValue(selectedOrder)}</div>
+                        <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div>
+                        <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
                       </div>
                       
                       {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
                       <button
-                        className="p-4 bg-blue-700 hover:bg-blue-900 text-white rounded flex items-center justify-center gap-2 w-full"
+                        className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors border-gray-400 border"
                         onClick={(e) => {
                           e.stopPropagation();
                           // Open QR code scanner first
@@ -2416,7 +2537,7 @@ const OrdersPage = () => {
                         aria-label="Write URL to NFC Tag"
                       >
                         <span className="material-symbols-outlined">nfc</span>
-                        <span className="font-medium">Write to NFC Tag</span>
+                        <span className="font-medium text-lg">Prepare NFC Card</span>
                       </button>
                     </div>
                   </div>
@@ -2425,7 +2546,7 @@ const OrdersPage = () => {
                   <div className="md:hidden h-16 mb-2"></div>
 
                   {/* LEFT HALF: Scrollable list of filtered properties */}
-                  <div className="w-full md:w-1/2 md:overflow-y-auto p-6 flex flex-col align-center justify-start relative">
+                  <div className="w-full md:w-1/2 md:overflow-y-auto p-6 flex flex-col align-center justify-start relative md:pb-6 pb-44">
                     <div className="text-center font-bold bg-black p-4 md:block hidden">ORDER PROPERTIES</div>
 
                     {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
@@ -2743,14 +2864,14 @@ const OrdersPage = () => {
 
       {isCameraOpen && (
         // Backdrop for QR Scanner
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
           <div className="flex flex-col items-center">
             {/* QR Scanner Container */}
-            <div className="relative bg-white dark:bg-gray-800 p-4 rounded-md">
-              <p className="mb-4 text-center text-gray-700 dark:text-gray-300">Scan order label QR Code</p>
+            <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
+              <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">Scan order label QR Code</p>
               
               {/* QR Scanner with better support for all QR code types */}
-              <div className="relative" style={{ width: '300px', height: '300px' }}>
+              <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
                 <Scanner
                   onScan={handleScan}
                   onError={handleError}
@@ -2764,7 +2885,55 @@ const OrdersPage = () => {
             {/* Close Button */}
             <button
               onClick={() => setIsCameraOpen(false)}
-              className="w-full p-4 mt-2 bg-gray-900 text-white-500 hover:text-white-700"
+              className="w-full p-4 mt-3 bg-gray-900 text-white font-medium text-lg rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+              title="Close Scanner"
+            >
+              CLOSE
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Scan Modal */}
+      {isDeliveryScanOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            {/* QR Scanner Container */}
+            <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
+              <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">
+                {scanStatus === "ready" ? "Scan label to mark as Ready for Delivery" : 
+                 scanStatus === "loading" ? `Processing Order ${currentScanOrder?.name || ''}...` :
+                 scanStatus === "success" ? `Order ${currentScanOrder?.name || ''} marked as Ready for Delivery` :
+                 `Error: ${currentScanOrder?.error || 'Unknown error'}`}
+              </p>
+              
+              {/* Status Indicator */}
+              {scanStatus !== "ready" && (
+                <div className={`mb-4 p-3 rounded-md text-center font-medium ${scanStatus === "loading" ? "bg-blue-100 text-blue-800 border border-blue-200" : 
+                                                              scanStatus === "success" ? "bg-green-100 text-green-800 border border-green-200" : 
+                                                              "bg-red-100 text-red-800 border border-red-200"}`}>
+                  {scanStatus === "loading" && "Updating order status..."}
+                  {scanStatus === "success" && "Success! Ready for next scan..."}
+                  {scanStatus === "error" && "Error! Try again..."}
+                </div>
+              )}
+              
+              {/* QR Scanner for delivery status */}
+              <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
+                <Scanner
+                  onScan={handleDeliveryScan}
+                  onError={handleDeliveryError}
+                  constraints={{ facingMode: 'environment' }}
+                  scanDelay={300}
+                  styles={{ container: { width: '100%', height: '100%' } }}
+                />
+              </div>
+            </div>
+              
+            {/* Close Button */}
+            <button
+              onClick={() => setIsDeliveryScanOpen(false)}
+              className="w-full p-4 mt-3 bg-gray-900 text-white font-medium text-lg rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
               title="Close Scanner"
             >
               CLOSE
@@ -2774,13 +2943,13 @@ const OrdersPage = () => {
       )}
 
       {isSubdomainCheckOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
           <div className="flex flex-col items-center">
-            <div className="relative bg-white dark:bg-gray-800 p-4 rounded-md">
-              <p className="mb-4 text-center text-gray-700 dark:text-gray-300">Scan QR Code to Compare Subdomain</p>
+            <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
+              <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">Scan QR Code to Compare Subdomain</p>
 
               {/* QR Scanner with better support for all QR code types */}
-              <div className="relative" style={{ width: '300px', height: '300px' }}>
+              <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
                 {/* Only render the Scanner component when it's actively needed */}
                 <Scanner
                   onScan={handleSubdomainScan}
@@ -2795,7 +2964,7 @@ const OrdersPage = () => {
               {isScannerPaused && (
                 <button
                   onClick={() => setIsScannerPaused(false)}
-                  className="w-full p-3 mt-2 bg-green-600 hover:bg-green-700 text-white rounded"
+                  className="w-full p-3 mt-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
                   title="Scan Again"
                 >
                   SCAN AGAIN
@@ -2803,7 +2972,7 @@ const OrdersPage = () => {
               )}
             </div>
 
-            <div className="flex w-full gap-2 mt-2">
+            <div className="flex w-full gap-3 mt-3">
               {/* Skip Button */}
               <button
                 onClick={() => {
@@ -2816,7 +2985,7 @@ const OrdersPage = () => {
                   console.log("Setting NFC URL to:", fullUrl);
                   setIsNfcWriteModalOpen(true);
                 }}
-                className="w-1/2 p-4 bg-blue-700 hover:bg-blue-800 text-white rounded"
+                className="w-1/2 p-4 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 title="Skip to NFC"
               >
                 SKIP TO NFC
@@ -2828,7 +2997,7 @@ const OrdersPage = () => {
                   setIsSubdomainCheckOpen(false);
                   setIsScannerPaused(false); // Reset for next time
                 }}
-                className="w-1/2 p-4 bg-gray-900 hover:bg-gray-800 text-white rounded"
+                className="w-1/2 p-4 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
                 title="Close Scanner"
               >
                 CLOSE
@@ -2840,9 +3009,9 @@ const OrdersPage = () => {
       
       {/* NFC Writing Modal for Android */}
       {isNfcWriteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center ">
           <div className="flex flex-col items-center w-11/12 max-w-md">
-            <div className="relative bg-white dark:bg-gray-800 p-6 rounded-md w-full">
+            <div className="relative bg-white dark:bg-gray-800 p-6 rounded-md w-full border-gray-400 border">
               <h3 className="text-lg font-medium text-center mb-4 text-gray-900 dark:text-white">Write URL to NFC Tag</h3>
               
               <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
@@ -2861,21 +3030,82 @@ const OrdersPage = () => {
               </div>
               
               <div className="flex flex-col items-center justify-center mb-4">
-                <div className={`w-24 h-24 mb-4 flex items-center justify-center rounded-full transition-all duration-500 ${isNfcWriting ? 'bg-blue-500 dark:bg-blue-600 shadow-lg shadow-blue-500/50 animate-pulse' : 'bg-blue-100 dark:bg-blue-900'}`}>
-                  <span className={`material-symbols-outlined text-4xl transition-all duration-500 ${isNfcWriting ? 'text-white animate-bounce' : 'text-blue-600 dark:text-blue-300'}`}>nfc</span>
+                <div className={`w-24 h-24 mb-4 flex items-center justify-center rounded-full transition-all duration-500 ${isNfcWriting ? 'bg-blue-500 dark:bg-blue-600 shadow-lg shadow-blue-500/50 animate-pulse' : isNfcVerifying ? 'bg-green-500 dark:bg-green-600 shadow-lg shadow-green-500/50 animate-pulse' : 'bg-blue-100 dark:bg-blue-900'}`}>
+                  <span className={`material-symbols-outlined text-4xl transition-all duration-500 ${isNfcWriting || isNfcVerifying ? 'text-white animate-bounce' : 'text-blue-600 dark:text-blue-300'}`}>{isNfcVerifying ? 'check_circle' : 'nfc'}</span>
                 </div>
                 <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                  {isNfcWriting ? 'Bring your phone close to an NFC tag...' : 'Tap the button below to start NFC writing mode.'}
+                  {isNfcWriting ? 'Bring your phone close to an NFC tag to write...' : 
+                   isNfcVerifying ? 'Tap the tag again to verify the written URL...' : 
+                   nfcWriteAttempts > 0 ? `Previous attempt failed. Try again (Attempt ${nfcWriteAttempts + 1}/3)` :
+                   'Tap the button below to start NFC writing mode.'}
                 </p>
+                {nfcWriteAttempts > 0 && !isNfcWriting && !isNfcVerifying && (
+                  <p className="text-center text-xs text-red-500 mt-2">
+                    Previous write verification failed. The URL may not have been written correctly.
+                  </p>
+                )}
               </div>
               
+              {/* Display the last read URL if available */}
+              {lastReadUrl && (
+                <div className="mb-4 p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last read URL:</p>
+                  <p className="text-sm font-mono break-all text-gray-900 dark:text-gray-100">{lastReadUrl}</p>
+                  {nfcUrl !== lastReadUrl && (
+                    <p className="mt-2 text-sm text-orange-600 dark:text-orange-400">
+                      <span className="font-medium">Warning:</span> This URL is different from what was intended to be written ({nfcUrl}).
+                    </p>
+                  )}
+                </div>
+              )}
+              
               <div className="flex flex-col gap-3">
+                {/* Show Done button if verification is complete */}
+                {showDoneButton && !isNfcWriting && !isNfcVerifying && (
+                  <button
+                    onClick={() => {
+                      // Update order status and close modal
+                      if (selectedOrder && selectedOrder.id) {
+                        saveStatusAPI(selectedOrder.id, "QA Review")
+                          .then(() => {
+                            // Update local state
+                            setStoryStatuses(prev => ({
+                              ...prev,
+                              [selectedOrder.id]: "QA Review"
+                            }));
+                            console.log("Order status updated to QA Review");
+                          })
+                          .catch(err => {
+                            console.error("Failed to update order status:", err);
+                          });
+                      }
+                      // Reset all states
+                      setNfcWriteAttempts(0);
+                      setLastReadUrl("");
+                      setShowDoneButton(false);
+                      setVerificationCompleted(false);
+                      setIsNfcWriteModalOpen(false);
+                      toast.success("NFC writing process completed.");
+                    }}
+                    className="w-full p-3 text-white rounded-md font-medium transition-all duration-300 bg-green-600 hover:bg-green-700"
+                  >
+                    Done
+                  </button>
+                )}
+                
                 <button
                   onClick={() => {
+                    // Reset verification state if retrying
+                    if (nfcWriteAttempts > 0) {
+                      console.log(`Retrying NFC write. Attempt ${nfcWriteAttempts + 1}/3`);
+                    }
+                    
                     // On Android, this will try to use the Web NFC API
                     if ('NDEFReader' in window) {
                       try {
                         setIsNfcWriting(true);
+                        setIsNfcVerifying(false);
+                        setVerificationCompleted(false);
                         const ndef = new (window as any).NDEFReader();
                         
                         console.log("Starting NFC writing with URL:", nfcUrl);
@@ -2897,24 +3127,108 @@ const OrdersPage = () => {
                           ndef.write({
                             records: [{ recordType: "url", data: urlToWrite }]
                           }).then(() => {
-                            setIsNfcWriting(false);
-                            toast.success("URL successfully written to NFC tag!");
-                            setIsNfcWriteModalOpen(false);
+                            toast.success("URL written to NFC tag! Verifying...");
                             
-                            // Update order status to QA Review
-                            if (selectedOrder && selectedOrder.id) {
-                              saveStatusAPI(selectedOrder.id, "QA Review")
-                                .then(() => {
-                                  // Update local state
-                                  setStoryStatuses(prev => ({
-                                    ...prev,
-                                    [selectedOrder.id]: "QA Review"
-                                  }));
-                                  console.log("Order status updated to QA Review");
-                                })
-                                .catch(err => {
-                                  console.error("Failed to update order status:", err);
-                                });
+                            // After writing, switch to verification mode
+                            setIsNfcWriting(false);
+                            setIsNfcVerifying(true);
+                            
+                            // Try to read the tag to verify the content
+                            console.log("Starting NFC verification...");
+                            
+                            // Read the tag to verify
+                            ndef.scan().then(() => {
+                              console.log("Verification scan started. Please tap the tag again.");
+                              
+                              // Set a timeout for verification
+                              setTimeout(() => {
+                                if (isNfcVerifying && !verificationCompleted) {
+                                  setIsNfcVerifying(false);
+                                  setVerificationCompleted(true);
+                                  toast.error("Verification timed out. You can try writing again or proceed.");
+                                  
+                                  // Keep modal open to allow retry
+                                  // Don't update order status automatically, wait for user to confirm
+                                }
+                              }, 30000);
+                              
+                            }).catch(error => {
+                              console.error("Error starting verification scan:", error);
+                              setIsNfcVerifying(false);
+                              setVerificationCompleted(true);
+                              setShowDoneButton(true); // Show done button even if verification fails
+                              toast.error("Could not verify the tag. You can try writing again or proceed.");
+                              
+                              // Don't close the modal, allow user to retry or proceed
+                              // Don't update order status automatically, wait for user to confirm
+                            });
+                            
+                            // Add a new reading event listener specifically for verification
+                            ndef.addEventListener('reading', ({ message, serialNumber }) => {
+                              // Only process if we're verifying and haven't completed verification yet
+                              if (isNfcVerifying && !verificationCompleted) {
+                                console.log(`Verification - Serial Number: ${serialNumber}`);
+                                console.log(`Verification - Records: (${message.records.length})`);
+                                
+                                let verificationPassed = false;
+                                
+                                // Check if any of the records match our URL
+                                for (const record of message.records) {
+                                  if (record.recordType === "url") {
+                                    const decoder = new TextDecoder();
+                                    const url = decoder.decode(record.data);
+                                    console.log(`Verification - Read URL: ${url}`);
+                                    
+                                    // Store the last read URL for display
+                                    setLastReadUrl(url);
+                                    setShowDoneButton(true);
+                                    
+                                    // Compare with the URL we tried to write
+                                    if (url === urlToWrite) {
+                                      console.log("Verification successful - URLs match!");
+                                      verificationPassed = true;
+                                      break;
+                                    } else {
+                                      console.log(`Verification failed - URLs don't match. Expected: ${urlToWrite}, Got: ${url}`);
+                                    }
+                                  }
+                                }
+                                
+                                setIsNfcVerifying(false);
+                                // Mark verification as completed to prevent multiple processing
+                                setVerificationCompleted(true);
+                                
+                                if (verificationPassed) {
+                                  toast.success("Verification successful! Correct URL written to tag.");
+                                  // Keep modal open to show the Done button
+                                  // Don't update order status yet, wait for user to click Done
+                                } else {
+                                  // Increment attempt counter but keep modal open
+                                  setNfcWriteAttempts(prev => prev + 1);
+                                  toast.error(`Verification failed. The written URL may be different from what was intended.`);
+                                  
+                                  // Keep modal open to allow retry or manual confirmation
+                                  // The user can now see what was written and decide to retry or proceed
+                                }
+                              }
+                            });
+                            
+                            // Helper function to update order status
+                            function updateOrderStatus() {
+                              if (selectedOrder && selectedOrder.id) {
+                                saveStatusAPI(selectedOrder.id, "QA Review")
+                                  .then(() => {
+                                    // Update local state
+                                    setStoryStatuses(prev => ({
+                                      ...prev,
+                                      [selectedOrder.id]: "QA Review"
+                                    }));
+                                    console.log("Order status updated to QA Review");
+                                  })
+                                  .catch(err => {
+                                    console.error("Failed to update order status:", err);
+                                  });
+                              }
                             }
                           }).catch((error) => {
                             setIsNfcWriting(false);
@@ -2947,20 +3261,28 @@ const OrdersPage = () => {
                       toast.error("NFC is not supported on this device or browser");
                     }
                   }}
-                  disabled={isNfcWriting}
-                  className={`w-full p-3 text-white rounded-md font-medium transition-all duration-300 ${isNfcWriting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  disabled={isNfcWriting || isNfcVerifying}
+                  className={`border-gray-400 border w-full p-3 text-white rounded-md font-medium transition-all duration-300 ${isNfcWriting || isNfcVerifying ? 'bg-blue-400 cursor-not-allowed' : nfcWriteAttempts > 0 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
-                  {isNfcWriting ? 'Writing to NFC Tag...' : 'Start NFC Writing'}
+                  {isNfcWriting ? 'Writing to NFC Tag...' : 
+                   isNfcVerifying ? 'Verifying NFC Tag...' : 
+                   nfcWriteAttempts > 0 ? `Retry NFC Writing (Attempt ${nfcWriteAttempts + 1}/3)` : 
+                   'Start NFC Writing'}
                 </button>
                 
                 <button
                   onClick={() => {
-                    if (!isNfcWriting) {
+                    if (!isNfcWriting && !isNfcVerifying) {
+                      // Reset all states when closing
+                      setNfcWriteAttempts(0);
+                      setLastReadUrl("");
+                      setShowDoneButton(false);
+                      setVerificationCompleted(false);
                       setIsNfcWriteModalOpen(false);
                     }
                   }}
-                  disabled={isNfcWriting}
-                  className={`w-full p-3 rounded-md font-medium transition-all duration-300 ${isNfcWriting ? 'bg-gray-400 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'}`}
+                  disabled={isNfcWriting || isNfcVerifying}
+                  className={`border-gray-400 border w-full p-3 rounded-md font-medium transition-all duration-300 ${isNfcWriting || isNfcVerifying ? 'bg-gray-400 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'}`}
                 >
                   Cancel
                 </button>
