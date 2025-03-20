@@ -101,6 +101,54 @@ const OrdersPage = () => {
     setIsModalOpen(true);
   };
   
+  // Handle sending preview link
+  const handleSendPreviewLink = (order) => {
+    if (!order) return;
+    
+    try {
+      const phoneNumber = getPhoneNumber(order);
+      if (!phoneNumber) {
+        toast.error('No phone number available for this order');
+        return;
+      }
+      
+      // Format the phone number consistently
+      const formattedPhone = formatLebanesePhoneNumber(phoneNumber);
+      
+      // Get the story URL from metafields
+      const storyUrl = order.metafields?.find(
+        (mf) => mf.namespace === "custom" && mf.key === "story-url"
+      )?.value;
+      
+      // Get the password if it exists
+      const passwordProperty = order.line_items[0].properties.find(
+        (prop) => prop.name === "password"
+      );
+      
+      // If no story URL is available
+      if (!storyUrl) {
+        toast.error('No story URL available for this order');
+        return;
+      }
+      
+      // Create the preview message
+      const previewMessage = `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${storyUrl}.ossotna.com/\n${passwordProperty
+        ? `password: ${passwordProperty.value}`
+        : ""
+      }\n\nHope you like it as much as we do!`;
+      
+      // Generate WhatsApp URL
+      const whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(previewMessage)}`;
+      
+      // Open WhatsApp link in a new tab
+      window.open(whatsappUrl, '_blank');
+      toast.success('Preview link sent via WhatsApp');
+    } catch (error) {
+      console.error('Error sending preview link:', error);
+      toast.error(`Error: ${error.message || 'Unknown error sending preview link'}`);
+    }
+  };
+  
   // Handle sending delivery message
   const handleSendDeliveryMessage = async (order) => {
     if (!order) return;
@@ -112,28 +160,21 @@ const OrdersPage = () => {
         return;
       }
       
-      const response = await fetch('/api/send-delivery-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phoneNumber,
-          orderName: order.name
-        }),
-      });
+      // Format the phone number consistently
+      const formattedPhone = formatLebanesePhoneNumber(phoneNumber);
       
-      const data = await response.json();
+      // Create delivery message text
+      const messageText = `Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you!`;
       
-      if (data.success && data.whatsappLink) {
-        // Open WhatsApp link in a new tab
-        window.open(data.whatsappLink, '_blank');
-      } else {
-        toast.error('Failed to generate WhatsApp link');
-      }
+      // Generate WhatsApp URL directly
+      const whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(messageText)}`;
+      
+      // Open WhatsApp link in a new tab
+      window.open(whatsappUrl, '_blank');
+      toast.success('WhatsApp message ready to send');
     } catch (error) {
       console.error('Error sending delivery message:', error);
-      toast.error('Error sending delivery message');
+      toast.error(`Error: ${error.message || 'Unknown error sending delivery message'}`);
     }
   };
   
@@ -1322,12 +1363,21 @@ const OrdersPage = () => {
 
   const formatLebanesePhoneNumber = (phone) => {
     if (!phone) return '';
+    
     // Remove any non-digit characters
     const digits = phone.replace(/\D/g, '');
-    // Check if the phone number starts with '0' and remove it
-    const formattedNumber = digits.startsWith('0') ? `+961${digits.slice(1)}` : digits;
-    // Prepend the country code '961'
-    return `${formattedNumber}`;
+    
+    // Format with Lebanese country code
+    if (digits.startsWith('0')) {
+      // If it starts with 0, replace with Lebanese country code
+      return `+961${digits.slice(1)}`;
+    } else if (!digits.startsWith('961')) {
+      // If it doesn't already have the country code, add it
+      return `+961${digits}`;
+    } else {
+      // If it already has the country code but no +, add it
+      return `+${digits}`;
+    }
   };
 
   const getPhoneNumber = (order) => {
@@ -1374,7 +1424,7 @@ const OrdersPage = () => {
     <>
       <div className="p-4 md:p-6 bg-gray-900 min-h-screen relative">
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center justify-between mb-4">
+        <div className="hidden md:flex items-center justify-start mb-4">
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mr-2" />
           <LogoutButton />
         </div>
@@ -1551,23 +1601,15 @@ const OrdersPage = () => {
                           {order.metafields?.some(
                             (mf) => mf.namespace === "custom" && mf.key === "story-url"
                           ) && (
-                              <a
-                                href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}&text=${encodeURIComponent(
-                                  `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${order.metafields.find(
-                                    (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                                  ).value
-                                  }.ossotna.com/\n${order.line_items[0].properties.find((prop) => prop.name === "password")
-                                    ? `password: ${order.line_items[0].properties.find((prop) => prop.name === "password").value
-                                    }`
-                                    : ""
-                                  }\n\nHope you like it as much as we do!`
-                                )}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSendPreviewLink(order);
+                                }}
                                 className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
                               >
                                 <span className="material-symbols-outlined">Draft</span>
-                              </a>
+                              </button>
                             )}
 
                           <div className={`md:hidden w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery"
@@ -2601,7 +2643,7 @@ const OrdersPage = () => {
                         <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div>
                         <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
                       </div>
-                      
+
                       {/* Delivery Message Button */}
                       <button
                         className="p-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
@@ -2708,23 +2750,15 @@ const OrdersPage = () => {
                       {selectedOrder.metafields?.some(
                         (mf) => mf.namespace === "custom" && mf.key === "story-url"
                       ) && (
-                          <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}&text=${encodeURIComponent(
-                              `Hello ${selectedOrder?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${selectedOrder.metafields.find(
-                                (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                              ).value
-                              }.ossotna.com/\n${selectedOrder.line_items[0].properties.find((prop) => prop.name === "password")
-                                ? `password: ${selectedOrder.line_items[0].properties.find((prop) => prop.name === "password").value
-                                }`
-                                : ""
-                              }\n\nHope you like it as much as we do!`
-                            )}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSendPreviewLink(selectedOrder);
+                            }}
                             className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
                           >
                             <span className="material-symbols-outlined">Draft</span>
-                          </a>
+                          </button>
                         )}
                     </div>
 
