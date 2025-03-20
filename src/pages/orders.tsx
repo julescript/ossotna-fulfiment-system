@@ -114,8 +114,6 @@ const OrdersPage = () => {
         return;
       }
       
-      // Format the phone number consistently
-      const formattedPhone = formatLebanesePhoneNumber(phoneNumber);
       // Format the phone number for WhatsApp
       const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
       
@@ -141,8 +139,8 @@ const OrdersPage = () => {
         : ""
       }\n\nHope you like it as much as we do!`;
       
-      // Generate WhatsApp URL using wa.me format which works better across devices
-      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(previewMessage)}`;
+      // Generate WhatsApp URL based on device
+      const whatsappUrl = getWhatsAppUrl(cleanPhone, previewMessage);
       
       // Open WhatsApp link in a new tab
       window.open(whatsappUrl, '_blank');
@@ -164,16 +162,14 @@ const OrdersPage = () => {
         return;
       }
       
-      // Format the phone number consistently
-      const formattedPhone = formatLebanesePhoneNumber(phoneNumber);
       // Format the phone number for WhatsApp
       const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
       
       // Create delivery message text
       const messageText = `📦 Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you!`
       
-      // Generate WhatsApp URL using wa.me format which works better across devices
-      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
+      // Generate WhatsApp URL based on device
+      const whatsappUrl = getWhatsAppUrl(cleanPhone, messageText);
       
       // Open WhatsApp link in a new tab
       window.open(whatsappUrl, '_blank');
@@ -215,7 +211,18 @@ const OrdersPage = () => {
         if (data.warning) {
           // Order was fulfilled but not marked as paid
           console.warn('Warning from API:', data.warning, data.details);
-          toast.warning(`Order marked as fulfilled but not paid: ${data.details?.[0]?.message || data.warning}`);
+          
+          // Check if it's the common "already paid" error
+          const alreadyPaidMessage = data.details?.some(error => 
+            error.message && error.message.toLowerCase().includes('already paid'));
+            
+          if (alreadyPaidMessage) {
+            toast.success('Order marked as fulfilled (was already paid)');
+          } else {
+            toast.warning(`Order marked as fulfilled but not paid: ${data.details?.[0]?.message || data.warning}`);
+          }
+        } else if (data.message && data.message.includes('already fulfilled and paid')) {
+          toast.info('Order was already fulfilled and paid');
         } else {
           toast.success('Order marked as fulfilled and paid');
         }
@@ -1406,6 +1413,20 @@ const OrdersPage = () => {
     const formattedPhone = formatLebanesePhoneNumber(phone);
     return formattedPhone.replace(/\+/g, '');
   };
+  
+  // Determine if we should use web.whatsapp.com or wa.me based on device
+  const getWhatsAppUrl = (phoneNumber, message = '') => {
+    // Check if we're on a mobile device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // For mobile, use wa.me which will open the app
+    if (isMobile) {
+      return `https://wa.me/${phoneNumber}${message ? `?text=${encodeURIComponent(message)}` : ''}`;
+    }
+    
+    // For desktop, use web.whatsapp.com which will open in browser
+    return `https://web.whatsapp.com/send?phone=${phoneNumber}${message ? `&text=${encodeURIComponent(message)}` : ''}`;
+  };
 
   const getPhoneNumber = (order) => {
     if (!order) return '';
@@ -1457,10 +1478,10 @@ const OrdersPage = () => {
         </div>
         
         {/* Mobile Navigation - Fixed at top */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex justify-between items-center border-b border-gray-500">
-          <div className="flex-1"></div>
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex justify-between items-center border-b border-gray-500 px-4">
+          {/* <div className="flex-1"></div> */}
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mb-2" />
-          <div className="flex-1 flex justify-end pr-2">
+          <div className="flex-1 flex justify-end">
             <LogoutButton />
           </div>
         </div>
@@ -1533,6 +1554,14 @@ const OrdersPage = () => {
 
         </div>
 
+        {/* Order Count Display */}
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-white text-lg font-medium">Orders</h2>
+          <span className="text-gray-300 bg-gray-700 px-3 py-1 rounded-full text-sm">
+            {orders.length} {orders.length === 1 ? 'order' : 'orders'} showing
+          </span>
+        </div>
+
         {/* Main Table Container */}
         <div className={`h-full w-full md:pb-0 pb-44 ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
           <div className="h-full w-full bg-gray-900 flex items-center justify-center">
@@ -1583,7 +1612,7 @@ const OrdersPage = () => {
                           )}
                           {/* Show phone or "N/A" */}
                           <a
-                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}`}
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden md:inline-block text-blue-500 underline"
@@ -1591,7 +1620,7 @@ const OrdersPage = () => {
                             {getPhoneNumber(order) || "N/A"}
                           </a>
                           <a
-                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}`}
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="md:hidden text-blue-500 underline"
@@ -1602,9 +1631,9 @@ const OrdersPage = () => {
 
                           {/* 1) Quick Hello Button */}
                           <a
-                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}?text=${encodeURIComponent(
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), 
                               `Hello ${order?.shipping_address?.first_name}`
-                            )}`}
+                            )}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
@@ -1614,9 +1643,9 @@ const OrdersPage = () => {
 
                           {/* 2) Thank You / Intro Message Button */}
                           <a
-                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}?text=${encodeURIComponent(
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), 
                               `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
-                            )}`}
+                            )}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
@@ -2751,7 +2780,7 @@ const OrdersPage = () => {
                       <br />
                       {/* Show phone or "N/A" */}
                       <a
-                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}`}
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)))}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden md:inline-block text-blue-500 underline"
@@ -2759,7 +2788,7 @@ const OrdersPage = () => {
                         {getPhoneNumber(selectedOrder) || "N/A"}
                       </a>
                       <a
-                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}`}
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)))}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="md:hidden text-blue-500 underline"
@@ -2770,9 +2799,9 @@ const OrdersPage = () => {
 
                       {/* 1) Quick Hello Button */}
                       <a
-                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}?text=${encodeURIComponent(
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), 
                           `Hello ${selectedOrder?.shipping_address?.first_name}`
-                        )}`}
+                        )}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
@@ -2782,9 +2811,9 @@ const OrdersPage = () => {
 
                       {/* 2) Thank You / Intro Message Button */}
                       <a
-                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}?text=${encodeURIComponent(
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), 
                           `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
-                        )}`}
+                        )}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"

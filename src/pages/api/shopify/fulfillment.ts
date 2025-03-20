@@ -193,9 +193,10 @@ export default async function handler(
     }
     
     // If we get here, the order needs to be marked as paid
+    // Using the direct input approach which has been confirmed to work
     const updateOrderMutation = `
-      mutation orderMarkAsPaid($input: OrderMarkAsPaidInput!) {
-        orderMarkAsPaid(input: $input) {
+      mutation {
+        orderMarkAsPaid(input: {id: "gid://shopify/Order/${orderId}"}) {
           order {
             id
             displayFinancialStatus
@@ -208,12 +209,6 @@ export default async function handler(
       }
     `;
 
-    const updateOrderVariables = {
-      input: {
-        id: `gid://shopify/Order/${orderId}`
-      }
-    };
-
     const updateOrderResponse = await fetch(
       `${config.shopify.adminApiEndpoint}/graphql.json`,
       {
@@ -223,8 +218,7 @@ export default async function handler(
           "X-Shopify-Access-Token": config.shopify.accessToken,
         },
         body: JSON.stringify({ 
-          query: updateOrderMutation,
-          variables: updateOrderVariables
+          query: updateOrderMutation
         }),
       }
     );
@@ -242,6 +236,8 @@ export default async function handler(
 
     const updateOrderData = await updateOrderResponse.json();
 
+    console.log('Update order response data:', JSON.stringify(updateOrderData, null, 2));
+    
     if (updateOrderData.errors || 
         (updateOrderData.data && 
          updateOrderData.data.orderMarkAsPaid && 
