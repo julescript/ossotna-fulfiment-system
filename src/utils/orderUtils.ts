@@ -118,7 +118,7 @@ export const processQrCodeSvg = (svgString) => {
 
         // Split the style string into individual properties
         const styleProperties = styleValue.split(";").map((s) => s.trim()).filter(Boolean);
-        const styleObj = {};
+        const styleObj: { [key: string]: string } = {};
 
         // Populate the style object
         styleProperties.forEach((s) => {

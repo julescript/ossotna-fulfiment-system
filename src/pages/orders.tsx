@@ -3,6 +3,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import dynamic from 'next/dynamic'; // Import dynamic from Next.js
 import ImageUploadModal from '../components/ImageUploadModal';
+import LogoutButton from '../components/LogoutButton';
 
 // Dynamically import QR Scanner components
 const Scanner = dynamic(() => import('@yudiel/react-qr-scanner').then(mod => mod.Scanner), { ssr: false });
@@ -689,7 +690,7 @@ const OrdersPage = () => {
       }));
 
       // 3) If user entered a custom item, push it to draftLineItems
-      if (customItemName && customItemPrice > 0) {
+      if (customItemName && parseFloat(customItemPrice) > 0) {
         draftLineItems.push({
           title: customItemName,
           price: customItemPrice.toString(), // must be a string
@@ -1302,13 +1303,18 @@ const OrdersPage = () => {
     <>
       <div className="p-4 md:p-6 bg-gray-900 min-h-screen relative">
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center mb-4">
+        <div className="hidden md:flex items-center justify-between mb-4">
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mr-2" />
+          <LogoutButton />
         </div>
         
         {/* Mobile Navigation - Fixed at top */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex flex-col items-center border-b border-gray-500">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex justify-between items-center border-b border-gray-500">
+          <div className="flex-1"></div>
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mb-2" />
+          <div className="flex-1 flex justify-end pr-2">
+            <LogoutButton />
+          </div>
         </div>
         
         {/* Mobile Footer Navigation */}
@@ -2625,8 +2631,9 @@ const OrdersPage = () => {
                     {selectedOrder && selectedOrder.line_items[0].properties.filter(
                       (prop) =>
                         ["_original_view_2",].includes(prop.name)
-                    ).map((prop) => !!prop.value ? (
+                    ).map((prop, index) => !!prop.value ? (
                       <Image
+                        key={`original-view-${index}`}
                         src={prop.value}
                         alt={prop.value}
                         width={200}
