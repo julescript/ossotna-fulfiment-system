@@ -74,6 +74,7 @@ const OrdersPage = () => {
   const [isDeliveryScanOpen, setIsDeliveryScanOpen] = useState(false);
   const [currentScanOrder, setCurrentScanOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
+  const [isFulfilling, setIsFulfilling] = useState(false);
 
   // 1) Add storyStatuses state & statusOptions array
   const [storyStatuses, setStoryStatuses] = useState({});
@@ -98,6 +99,76 @@ const OrdersPage = () => {
   const handleOpenModal = (order) => {
     setSelectedOrder(order);
     setIsModalOpen(true);
+  };
+  
+  // Handle sending delivery message
+  const handleSendDeliveryMessage = async (order) => {
+    if (!order) return;
+    
+    try {
+      const phoneNumber = getPhoneNumber(order);
+      if (!phoneNumber) {
+        toast.error('No phone number available for this order');
+        return;
+      }
+      
+      const response = await fetch('/api/send-delivery-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phoneNumber,
+          orderName: order.name
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.whatsappLink) {
+        // Open WhatsApp link in a new tab
+        window.open(data.whatsappLink, '_blank');
+      } else {
+        toast.error('Failed to generate WhatsApp link');
+      }
+    } catch (error) {
+      console.error('Error sending delivery message:', error);
+      toast.error('Error sending delivery message');
+    }
+  };
+  
+  // Handle fulfilling order
+  const handleFulfillOrder = async (order) => {
+    if (!order) return;
+    
+    try {
+      setIsFulfilling(true);
+      
+      const response = await fetch('/api/shopify/fulfillment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: order.id
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success('Order marked as fulfilled and paid');
+        // Refresh orders after fulfillment
+        fetchOrders(limit);
+      } else {
+        toast.error(`Failed to fulfill order: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error fulfilling order:', error);
+      toast.error('Error fulfilling order');
+    } finally {
+      setIsFulfilling(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -2530,6 +2601,35 @@ const OrdersPage = () => {
                         <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div>
                         <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
                       </div>
+                      
+                      {/* Delivery Message Button */}
+                      <button
+                        className="p-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSendDeliveryMessage(selectedOrder);
+                        }}
+                        title="Send Delivery Message"
+                        aria-label="Send Delivery Message"
+                      >
+                        <span className="material-symbols-outlined">send</span>
+                        <span className="font-medium text-lg">Send Delivery Message</span>
+                      </button>
+                      
+                      {/* Fulfill Order Button */}
+                      <button
+                        className="p-4 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors border-gray-400 border"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFulfillOrder(selectedOrder);
+                        }}
+                        disabled={isFulfilling}
+                        title="Mark as Fulfilled & Paid"
+                        aria-label="Mark as Fulfilled & Paid"
+                      >
+                        <span className="material-symbols-outlined">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>
+                        <span className="font-medium text-lg">{isFulfilling ? 'Processing...' : 'Mark as Fulfilled & Paid'}</span>
+                      </button>
                       
                       {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
                       <button
