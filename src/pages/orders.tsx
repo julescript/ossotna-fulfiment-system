@@ -170,7 +170,7 @@ const OrdersPage = () => {
       const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
       
       // Create delivery message text
-      const messageText = `Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you! مرحبا، نحن نقوم بتوصيل طلبك من Ossotna. يرجى مشاركة موقعك وتحضير المبلغ المطلوب بالضبط حيث لا يمكننا ضمان توفر الفكة. شكرا!`;
+      const messageText = `📦 Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you!`
       
       // Generate WhatsApp URL using wa.me format which works better across devices
       const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
@@ -212,11 +212,18 @@ const OrdersPage = () => {
       const data = await response.json();
       
       if (data.success) {
-        toast.success('Order marked as fulfilled and paid');
+        if (data.warning) {
+          // Order was fulfilled but not marked as paid
+          console.warn('Warning from API:', data.warning, data.details);
+          toast.warning(`Order marked as fulfilled but not paid: ${data.details?.[0]?.message || data.warning}`);
+        } else {
+          toast.success('Order marked as fulfilled and paid');
+        }
         // Refresh orders after fulfillment
         fetchOrders(limit);
       } else {
         toast.error(`Failed to fulfill order: ${data.error || 'Unknown error'}`);
+        console.error('Fulfillment error details:', data.details || 'No details provided');
       }
     } catch (error) {
       console.error('Error fulfilling order:', error);
@@ -2195,8 +2202,8 @@ const OrdersPage = () => {
                       subdomain={subdomainValue(selectedOrder)}
                     />
                     
-                    {/* Story Type Display - Both Mobile and Desktop */}
-                    <div className="w-full px-4 py-2 flex justify-center mb-4">
+                    {/* Story Type Display and Shopify Button - Both Mobile and Desktop */}
+                    <div className="w-full px-4 py-2 flex justify-center items-center gap-3 mb-4">
                       {(() => {
                         const storyType = selectedOrder.line_items[0].properties.find(
                           (prop) => prop.name === "story-type"
@@ -2221,6 +2228,20 @@ const OrdersPage = () => {
                           </div>
                         );
                       })()}
+                      
+                      {/* Shopify Order Button */}
+                      <button
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full text-sm flex items-center gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenShopifyOrderPage(selectedOrder);
+                        }}
+                        title="Open Shopify Order Page"
+                        aria-label="Open Shopify Order Page"
+                      >
+                        <span className="material-symbols-outlined mr-1">shopping_cart</span>
+                        View in Shopify
+                      </button>
                     </div>
 
                     <div className="p-4 pt-0 w-full md:hidden">
@@ -2664,19 +2685,7 @@ const OrdersPage = () => {
                         <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
                       </div>
                       
-                      {/* Shopify Order Button */}
-                      <button
-                        className="p-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors border-gray-400 border"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenShopifyOrderPage(selectedOrder);
-                        }}
-                        title="Open Shopify Order Page"
-                        aria-label="Open Shopify Order Page"
-                      >
-                        <span className="material-symbols-outlined">shopping_cart</span>
-                        <span className="font-medium text-lg">View in Shopify</span>
-                      </button>
+
                       
                       {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
                       <button
@@ -3202,8 +3211,13 @@ const OrdersPage = () => {
                   <p className="font-medium">Payment Breakdown:</p>
                   <p><span className="font-medium">Items:</span> {orderToFulfill.currencyCode} {orderToFulfill.subtotalPriceSet?.shopMoney?.amount || '0.00'}</p>
                   <p><span className="font-medium">Shipping:</span> {orderToFulfill.currencyCode} {orderToFulfill.shipping_lines?.[0]?.price || '0.00'}</p>
-                  <p className="text-xl font-bold mt-2 text-green-600 dark:text-green-400">
-                    <span className="font-medium">Total to collect:</span> {orderToFulfill.currencyCode} {orderToFulfill.totalPriceSet?.shopMoney?.amount || orderToFulfill.total_price}
+                </div>
+                
+                {/* Prominent Total Amount */}
+                <div className="mt-4 p-4 bg-green-100 dark:bg-green-900 rounded-lg text-center">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200">TOTAL TO COLLECT</p>
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-300 mt-1">
+                    {orderToFulfill.currencyCode} {orderToFulfill.totalPriceSet?.shopMoney?.amount || orderToFulfill.total_price}
                   </p>
                 </div>
               </div>
@@ -3211,15 +3225,15 @@ const OrdersPage = () => {
               <p className="text-sm text-red-500">This action cannot be undone!</p>
             </div>
             
-            <div className="flex justify-end space-x-3">
+            <div className="flex w-full mt-6 gap-3">
               <button
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                className="w-1/2 py-3 bg-gray-300 hover:bg-gray-400 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors font-medium"
                 onClick={() => setShowFulfillConfirmation(false)}
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors flex items-center gap-2"
+                className="w-1/2 py-3 bg-green-600 hover:bg-green-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors flex items-center justify-center gap-2 font-medium"
                 onClick={confirmFulfillOrder}
                 disabled={isFulfilling}
               >

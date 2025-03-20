@@ -151,6 +151,48 @@ export default async function handler(
     }
 
     // Now update the order's financial status to paid
+    // First, check if the order is already paid
+    const orderStatusQuery = `
+      {
+        order(id: "gid://shopify/Order/${orderId}") {
+          id
+          displayFinancialStatus
+        }
+      }
+    `;
+    
+    console.log(`Checking order status for orderId: ${orderId}`);
+    
+    const orderStatusResponse = await fetch(
+      `${config.shopify.adminApiEndpoint}/graphql.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": config.shopify.accessToken,
+        },
+        body: JSON.stringify({ query: orderStatusQuery }),
+      }
+    );
+    
+    if (!orderStatusResponse.ok) {
+      console.error(`Order status check failed with status: ${orderStatusResponse.status}`);
+      console.error(`Response text: ${await orderStatusResponse.text()}`);
+      // Continue with marking as paid anyway
+    } else {
+      const orderStatusData = await orderStatusResponse.json();
+      if (!orderStatusData.errors && orderStatusData.data?.order?.displayFinancialStatus === "PAID") {
+        console.log(`Order ${orderId} is already marked as paid. Skipping payment update.`);
+        return res.status(200).json({
+          success: true,
+          message: 'Order was already fulfilled and paid',
+          fulfillment: fulfillmentData.data.fulfillmentCreateV2.fulfillment,
+          orderStatus: orderStatusData.data.order
+        });
+      }
+    }
+    
+    // If we get here, the order needs to be marked as paid
     const updateOrderMutation = `
       mutation orderMarkAsPaid($input: OrderMarkAsPaidInput!) {
         orderMarkAsPaid(input: $input) {
@@ -205,15 +247,29 @@ export default async function handler(
          updateOrderData.data.orderMarkAsPaid && 
          updateOrderData.data.orderMarkAsPaid.userErrors && 
          updateOrderData.data.orderMarkAsPaid.userErrors.length > 0)) {
-      console.error("Error marking order as paid:", 
-        updateOrderData.errors || 
-        updateOrderData.data.orderMarkAsPaid.userErrors);
+      
+      const errors = updateOrderData.errors || updateOrderData.data.orderMarkAsPaid.userErrors;
+      console.error("Error marking order as paid:", errors);
+      
+      // Check if this is the common "already paid" error
+      const alreadyPaidError = errors.some(error => 
+        error.message && error.message.includes("already paid"));
+      
+      if (alreadyPaidError) {
+        console.log(`Order ${orderId} was already paid. Returning success.`);
+        return res.status(200).json({
+          success: true,
+          message: 'Order marked as fulfilled (was already paid)',
+          fulfillment: fulfillmentData.data.fulfillmentCreateV2.fulfillment
+        });
+      }
+      
       // We still return success since the fulfillment was created
       return res.status(200).json({
         success: true,
         fulfillment: fulfillmentData.data.fulfillmentCreateV2.fulfillment,
         warning: "Order was fulfilled but could not be marked as paid",
-        details: updateOrderData.errors || updateOrderData.data.orderMarkAsPaid.userErrors
+        details: errors
       });
     }
 
