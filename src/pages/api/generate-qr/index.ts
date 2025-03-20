@@ -1,17 +1,18 @@
-// pages/api/generateQRCode.js
+// pages/api/generate-qr/index.ts
 
 import axios from "axios";
 import fs from "fs";
 import path from "path";
+import { NextApiRequest, NextApiResponse } from 'next';
 
-export default async function handler(req, res) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   // 1. Method Check
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   // 2. Extract and Validate Subdomain
-  const { subdomain } = req.body;
+  const { subdomain } = req.body as { subdomain?: string };
 
   if (!subdomain) {
     return res.status(400).json({ error: "Subdomain is required" });
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
     // 8. Return the Newly Generated SVG to Client
     res.setHeader("Content-Type", "image/svg+xml");
     res.status(200).send(svgData);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating QR code:", error.message);
     res
       .status(500)

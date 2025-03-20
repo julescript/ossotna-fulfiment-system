@@ -2,13 +2,19 @@ import axios from "axios";
 import sharp from "sharp";
 import JSZip from "jszip"; // For creating zip files
 import { v4 as uuidv4 } from "uuid"; // For unique IDs
+import { NextApiRequest, NextApiResponse } from 'next';
 
-export default async function handler(req, res) {
+interface ProcessImagesRequest {
+  orderName: string;
+  imageUrls: string[];
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { orderName, imageUrls } = req.body;
+  const { orderName, imageUrls } = req.body as ProcessImagesRequest;
 
   if (!orderName || !imageUrls || imageUrls.length === 0) {
     return res.status(400).json({ error: "Invalid request data" });
@@ -18,7 +24,9 @@ export default async function handler(req, res) {
     const zip = new JSZip();
     const folder = zip.folder(orderName); // Create a folder inside the zip file
 
-    for (const [index, url] of imageUrls.entries()) {
+    // Use traditional for loop to avoid TypeScript iterator issues
+    for (let index = 0; index < imageUrls.length; index++) {
+      const url = imageUrls[index];
       // Step 1: Download the image
       const response = await axios.get(url, { responseType: "arraybuffer" });
       const buffer = Buffer.from(response.data);
@@ -43,9 +51,9 @@ export default async function handler(req, res) {
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename=${orderName}.zip`);
     res.status(200).send(zipBuffer);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing images:", error);
-    res.status(500).json({ error: "Failed to process images" });
+    res.status(500).json({ error: "Failed to process images", details: error.message });
   }
 }
 

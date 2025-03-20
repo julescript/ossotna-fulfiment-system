@@ -3,22 +3,35 @@ import sharp from "sharp";
 import { cpus } from "os";
 import { fileTypeFromBuffer } from "file-type";
 import heicConvert from "heic-convert"; // Faster HEIC conversion
+import { NextApiRequest, NextApiResponse } from 'next';
 
-export default async function handler(req, res) {
+interface ProcessImagesUploadRequest {
+  folderName: string;
+  imageUrls: string[];
+}
+
+interface ResizedImage {
+  filename: string;
+  resizedBuffer: Buffer;
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { folderName, imageUrls } = req.body;
+  const { folderName, imageUrls } = req.body as ProcessImagesUploadRequest;
 
   if (!folderName || !imageUrls || imageUrls.length === 0) {
     return res.status(400).json({ error: "Invalid request data" });
   }
 
-  const resizedImages = [];
+  const resizedImages: ResizedImage[] = [];
 
   try {
-    for (const [index, url] of imageUrls.entries()) {
+    // Use traditional for loop to avoid TypeScript iterator issues
+    for (let index = 0; index < imageUrls.length; index++) {
+      const url = imageUrls[index];
       console.log(`Downloading image ${index + 1}: ${url}`);
 
       // Fetch the image
@@ -63,7 +76,7 @@ export default async function handler(req, res) {
         resizedBuffer: image.resizedBuffer.toString("base64"),
       })),
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing images:", error.message);
     res.status(500).json({ error: "Failed to process images.", details: error.message });
   }
