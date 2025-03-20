@@ -68,6 +68,8 @@ const OrdersPage = () => {
   const [isNfcWriting, setIsNfcWriting] = useState(false);
   const [isNfcVerifying, setIsNfcVerifying] = useState(false);
   const [nfcWriteAttempts, setNfcWriteAttempts] = useState(0);
+  const [showFulfillConfirmation, setShowFulfillConfirmation] = useState(false);
+  const [orderToFulfill, setOrderToFulfill] = useState(null);
   const [lastReadUrl, setLastReadUrl] = useState("");
   const [showDoneButton, setShowDoneButton] = useState(false);
   const [verificationCompleted, setVerificationCompleted] = useState(false);
@@ -182,12 +184,20 @@ const OrdersPage = () => {
     }
   };
   
-  // Handle fulfilling order
-  const handleFulfillOrder = async (order) => {
+  // Show confirmation before fulfilling order
+  const handleFulfillOrder = (order) => {
     if (!order) return;
+    setOrderToFulfill(order);
+    setShowFulfillConfirmation(true);
+  };
+  
+  // Actually fulfill the order after confirmation
+  const confirmFulfillOrder = async () => {
+    if (!orderToFulfill) return;
     
     try {
       setIsFulfilling(true);
+      setShowFulfillConfirmation(false);
       
       const response = await fetch('/api/shopify/fulfillment', {
         method: 'POST',
@@ -195,7 +205,7 @@ const OrdersPage = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          orderId: order.id
+          orderId: orderToFulfill.id
         }),
       });
       
@@ -1456,7 +1466,7 @@ const OrdersPage = () => {
             title="Scan Order QR Code"
           >
             <span className="material-symbols-outlined">qr_code_scanner</span>
-            <span className="font-medium text-lg">Prepare Order (Scan Label)</span>
+            <span className="font-medium text-lg">Scan Order Label</span>
           </button>
           
           <button
@@ -3169,6 +3179,61 @@ const OrdersPage = () => {
                 title="Close Scanner"
               >
                 CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Fulfill Order Confirmation Modal */}
+      {showFulfillConfirmation && orderToFulfill && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Confirm Order Fulfillment</h3>
+            
+            <div className="mb-6 text-gray-700 dark:text-gray-300">
+              <p className="mb-4">Are you sure you want to mark this order as fulfilled and paid?</p>
+              
+              <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-4">
+                <p className="font-medium mb-2">Order Details:</p>
+                <p><span className="font-medium">Order:</span> {orderToFulfill.name}</p>
+                <p><span className="font-medium">Customer:</span> {orderToFulfill?.shipping_address?.first_name} {orderToFulfill?.shipping_address?.last_name}</p>
+                <div className="mt-3 border-t border-gray-200 dark:border-gray-600 pt-3">
+                  <p className="font-medium">Payment Breakdown:</p>
+                  <p><span className="font-medium">Items:</span> {orderToFulfill.currencyCode} {orderToFulfill.subtotalPriceSet?.shopMoney?.amount || '0.00'}</p>
+                  <p><span className="font-medium">Shipping:</span> {orderToFulfill.currencyCode} {orderToFulfill.shipping_lines?.[0]?.price || '0.00'}</p>
+                  <p className="text-xl font-bold mt-2 text-green-600 dark:text-green-400">
+                    <span className="font-medium">Total to collect:</span> {orderToFulfill.currencyCode} {orderToFulfill.totalPriceSet?.shopMoney?.amount || orderToFulfill.total_price}
+                  </p>
+                </div>
+              </div>
+              
+              <p className="text-sm text-red-500">This action cannot be undone!</p>
+            </div>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
+                onClick={() => setShowFulfillConfirmation(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors flex items-center gap-2"
+                onClick={confirmFulfillOrder}
+                disabled={isFulfilling}
+              >
+                {isFulfilling ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></span>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined">check_circle</span>
+                    Confirm
+                  </>
+                )}
               </button>
             </div>
           </div>
