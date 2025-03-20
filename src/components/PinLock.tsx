@@ -105,7 +105,7 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
   }, [onPinVerified, redirectPath, router]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-gray-800 to-black">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
       <div className="bg-gray-900 p-8 rounded-xl shadow-2xl w-[400px] max-w-[90%] border border-gray-700">
         <div className="flex justify-center mb-6">
           <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center border-2 border-gray-700 shadow-lg">
@@ -114,8 +114,8 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
             </svg>
           </div>
         </div>
-        <h2 className="text-2xl font-bold text-center mb-8 text-gray-200">Secure Access</h2>
-        
+        {/* <h2 className="text-2xl font-bold text-center mb-8 text-gray-200">Secure Access</h2> */}
+        <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mb-8 mr-auto ml-auto" />
         {error && (
           <div className="mb-6 p-4 bg-red-900/50 text-red-200 rounded-lg text-center border border-red-700">
             {error}
