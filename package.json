@@ -17,6 +17,7 @@
     "@squoosh/lib": "^0.5.3",
     "@uides/react-qr-reader": "^3.0.1-rc.27",
     "@yudiel/react-qr-scanner": "^2.2.1",
+    "axios": "^1.8.4",
     "bcryptjs": "^2.4.3",
     "dompurify": "^3.2.3",
     "express-rate-limit": "^7.5.0",
