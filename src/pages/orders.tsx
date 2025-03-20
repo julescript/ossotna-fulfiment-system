@@ -114,6 +114,8 @@ const OrdersPage = () => {
       
       // Format the phone number consistently
       const formattedPhone = formatLebanesePhoneNumber(phoneNumber);
+      // Format the phone number for WhatsApp
+      const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
       
       // Get the story URL from metafields
       const storyUrl = order.metafields?.find(
@@ -137,8 +139,8 @@ const OrdersPage = () => {
         : ""
       }\n\nHope you like it as much as we do!`;
       
-      // Generate WhatsApp URL
-      const whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(previewMessage)}`;
+      // Generate WhatsApp URL using wa.me format which works better across devices
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(previewMessage)}`;
       
       // Open WhatsApp link in a new tab
       window.open(whatsappUrl, '_blank');
@@ -162,12 +164,14 @@ const OrdersPage = () => {
       
       // Format the phone number consistently
       const formattedPhone = formatLebanesePhoneNumber(phoneNumber);
+      // Format the phone number for WhatsApp
+      const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
       
       // Create delivery message text
-      const messageText = `Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you!`;
+      const messageText = `Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you! مرحبا، نحن نقوم بتوصيل طلبك من Ossotna. يرجى مشاركة موقعك وتحضير المبلغ المطلوب بالضبط حيث لا يمكننا ضمان توفر الفكة. شكرا!`;
       
-      // Generate WhatsApp URL directly
-      const whatsappUrl = `https://web.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(messageText)}`;
+      // Generate WhatsApp URL using wa.me format which works better across devices
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
       
       // Open WhatsApp link in a new tab
       window.open(whatsappUrl, '_blank');
@@ -1379,6 +1383,12 @@ const OrdersPage = () => {
       return `+${digits}`;
     }
   };
+  
+  // Format phone number for WhatsApp (wa.me format requires no + sign)
+  const formatPhoneForWhatsApp = (phone) => {
+    const formattedPhone = formatLebanesePhoneNumber(phone);
+    return formattedPhone.replace(/\+/g, '');
+  };
 
   const getPhoneNumber = (order) => {
     if (!order) return '';
@@ -1556,7 +1566,7 @@ const OrdersPage = () => {
                           )}
                           {/* Show phone or "N/A" */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}`}
+                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hidden md:inline-block text-blue-500 underline"
@@ -1564,7 +1574,7 @@ const OrdersPage = () => {
                             {getPhoneNumber(order) || "N/A"}
                           </a>
                           <a
-                            href={`https://wa.me/${getPhoneNumber(order)}`}
+                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="md:hidden text-blue-500 underline"
@@ -1575,7 +1585,7 @@ const OrdersPage = () => {
 
                           {/* 1) Quick Hello Button */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}&text=${encodeURIComponent(
+                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}?text=${encodeURIComponent(
                               `Hello ${order?.shipping_address?.first_name}`
                             )}`}
                             target="_blank"
@@ -1587,7 +1597,7 @@ const OrdersPage = () => {
 
                           {/* 2) Thank You / Intro Message Button */}
                           <a
-                            href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(order))}&text=${encodeURIComponent(
+                            href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(order))}?text=${encodeURIComponent(
                               `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                             )}`}
                             target="_blank"
@@ -2643,34 +2653,19 @@ const OrdersPage = () => {
                         <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div>
                         <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
                       </div>
-
-                      {/* Delivery Message Button */}
-                      <button
-                        className="p-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSendDeliveryMessage(selectedOrder);
-                        }}
-                        title="Send Delivery Message"
-                        aria-label="Send Delivery Message"
-                      >
-                        <span className="material-symbols-outlined">send</span>
-                        <span className="font-medium text-lg">Send Delivery Message</span>
-                      </button>
                       
-                      {/* Fulfill Order Button */}
+                      {/* Shopify Order Button */}
                       <button
-                        className="p-4 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors border-gray-400 border"
+                        className="p-4 bg-purple-600 hover:bg-purple-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors border-gray-400 border"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleFulfillOrder(selectedOrder);
+                          handleOpenShopifyOrderPage(selectedOrder);
                         }}
-                        disabled={isFulfilling}
-                        title="Mark as Fulfilled & Paid"
-                        aria-label="Mark as Fulfilled & Paid"
+                        title="Open Shopify Order Page"
+                        aria-label="Open Shopify Order Page"
                       >
-                        <span className="material-symbols-outlined">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>
-                        <span className="font-medium text-lg">{isFulfilling ? 'Processing...' : 'Mark as Fulfilled & Paid'}</span>
+                        <span className="material-symbols-outlined">shopping_cart</span>
+                        <span className="font-medium text-lg">View in Shopify</span>
                       </button>
                       
                       {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
@@ -2687,6 +2682,38 @@ const OrdersPage = () => {
                         <span className="material-symbols-outlined">nfc</span>
                         <span className="font-medium text-lg">Prepare NFC Card</span>
                       </button>
+                      
+                      {/* Delivery Message and Fulfill Order Buttons - Side by side on mobile */}
+                      <div className="flex flex-row gap-3">
+                        {/* Delivery Message Button */}
+                        <button
+                          className="p-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendDeliveryMessage(selectedOrder);
+                          }}
+                          title="Send Delivery Message"
+                          aria-label="Send Delivery Message"
+                        >
+                          <span className="material-symbols-outlined">send</span>
+                          <span className="font-medium text-sm md:text-lg">Delivery Msg</span>
+                        </button>
+                        
+                        {/* Fulfill Order Button */}
+                        <button
+                          className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors border-gray-400 border"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFulfillOrder(selectedOrder);
+                          }}
+                          disabled={isFulfilling}
+                          title="Mark as Fulfilled & Paid"
+                          aria-label="Mark as Fulfilled & Paid"
+                        >
+                          <span className="material-symbols-outlined">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>
+                          <span className="font-medium text-sm md:text-lg">{isFulfilling ? 'Processing...' : 'Mark Fulfilled'}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -2705,7 +2732,7 @@ const OrdersPage = () => {
                       <br />
                       {/* Show phone or "N/A" */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}`}
+                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="hidden md:inline-block text-blue-500 underline"
@@ -2713,7 +2740,7 @@ const OrdersPage = () => {
                         {getPhoneNumber(selectedOrder) || "N/A"}
                       </a>
                       <a
-                        href={`https://wa.me/${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}`}
+                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="md:hidden text-blue-500 underline"
@@ -2724,7 +2751,7 @@ const OrdersPage = () => {
 
                       {/* 1) Quick Hello Button */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}&text=${encodeURIComponent(
+                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}?text=${encodeURIComponent(
                           `Hello ${selectedOrder?.shipping_address?.first_name}`
                         )}`}
                         target="_blank"
@@ -2736,7 +2763,7 @@ const OrdersPage = () => {
 
                       {/* 2) Thank You / Intro Message Button */}
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${formatLebanesePhoneNumber(getPhoneNumber(selectedOrder))}&text=${encodeURIComponent(
+                        href={`https://wa.me/${formatPhoneForWhatsApp(getPhoneNumber(selectedOrder))}?text=${encodeURIComponent(
                           `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                         )}`}
                         target="_blank"
