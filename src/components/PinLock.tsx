@@ -106,7 +106,7 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
-      <div className="bg-gray-900 p-8 rounded-xl shadow-2xl w-[400px] max-w-[90%] border border-gray-700">
+      <div className="bg-gray-900 p-8 rounded-xl shadow-2xl w-[400px] max-w-[90%]">
         <div className="flex justify-center mb-6">
           <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center border-2 border-gray-700 shadow-lg">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
