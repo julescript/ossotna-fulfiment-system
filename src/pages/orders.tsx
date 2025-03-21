@@ -2708,18 +2708,18 @@ const OrdersPage = () => {
 
                   {/* Mobile Fixed Footer for Subdomain Actions */}
                   <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-700 p-3 border-t border-gray-400 shadow-lg">
-                    <div className="flex flex-col gap-3">
-                      <div className="w-full">
-                        <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div>
+                      <div className="flex flex-col gap-3">
+                        
+                      <div className="flex flex-row gap-3">
+                      <div className="w-1/2">
+                        {/* <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div> */}
                         <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
                       </div>
                       
-
-                      
                       {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
                       <button
-                        className="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors border-gray-400 border"
-                        onClick={(e) => {
+                          className="p-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
+                          onClick={(e) => {
                           e.stopPropagation();
                           // Open QR code scanner first
                           setIsSubdomainCheckOpen(true);
@@ -2728,8 +2728,9 @@ const OrdersPage = () => {
                         aria-label="Write URL to NFC Tag"
                       >
                         <span className="material-symbols-outlined">nfc</span>
-                        <span className="font-medium text-lg">Prepare NFC Card</span>
+                        <span className="font-medium text-sm md:text-lg">Prepare NFC Card</span>
                       </button>
+                      </div>
                       
                       {/* Delivery Message and Fulfill Order Buttons - Side by side on mobile */}
                       <div className="flex flex-row gap-3">

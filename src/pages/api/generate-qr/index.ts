@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const urlToEncode = `https://${subdomain}.ossotna.com`;
-  const logoPath = "https://res.cloudinary.com/ossotna/image/upload/v1738088411/sample/nfcicon_vixlug.svg"; // External logo URL
+  const logoPath = "https://res.cloudinary.com/ossotna/image/upload/v1742533310/sample/nfc-icon-new_i1h1ih.svg"; // External logo URL
 
   // 3. Define Cache Directory and File Path
   const cacheDir = path.join(process.cwd(), "cache", "qr-codes");
