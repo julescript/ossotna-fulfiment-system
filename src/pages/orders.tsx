@@ -147,7 +147,7 @@ const OrdersPage = () => {
       toast.success('Preview link sent via WhatsApp');
     } catch (error) {
       console.error('Error sending preview link:', error);
-      toast.error(`Error: ${error.message || 'Unknown error sending preview link'}`);
+      toast.error(`Error: ${error.message || 'Unknown error sending preview link to client'}`);
     }
   };
   
