@@ -1,6 +1,6 @@
 {
   "name": "ossotna-fulfillment-system",
-  "version": "0.1.2",
+  "version": "1.0.2",
   "description": "Ossotna fulfillment system",
   "private": true,
   "scripts": {

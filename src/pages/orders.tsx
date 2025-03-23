@@ -1190,6 +1190,140 @@ const OrdersPage = () => {
     handleSaveMetafield(orderId, "story-date", milestoneDate);
   };
 
+  /**
+   * Handler to restore all fields at once
+   */
+  const handleRestoreAllFields = (order) => {
+    console.log("Restoring all fields for order:", order.id);
+    
+    // Check if story type is mother
+    const storyType = order.line_items[0].properties.find(
+      (prop) => prop.name === "story-type"
+    );
+    
+    // Restore Milestone Date
+    let milestoneDateValue = "";
+    if (storyType?.value === "mother") {
+      // For mother stories, use localized "A Mother's Story" based on language
+      const languageProp = order.line_items[0].properties.find(
+        (prop) => prop.name === "story-language"
+      );
+      const language = languageProp?.value || "en";
+
+      // Set default value based on language
+      if (language === "ar") {
+        milestoneDateValue = "قصّة أمّ";
+      } else if (language === "fr") {
+        milestoneDateValue = "L'histoire d'une mère";
+      } else {
+        milestoneDateValue = "A Mother's Story";
+      }
+    } else {
+      // For non-mother stories, try all possible property name variations
+      const possibleNames = ["milestone_date", "milestone date", "milestone-date"];
+      
+      for (const name of possibleNames) {
+        const property = order.line_items[0].properties.find(
+          (prop) => prop.name === name
+        );
+        if (property?.value) {
+          milestoneDateValue = property.value;
+          break;
+        }
+      }
+    }
+    
+    // Restore Story Title
+    let storyTitleValue = "";
+    if (storyType?.value === "mother") {
+      const momNameProp = order.line_items[0].properties.find(
+        (prop) => prop.name === "mom_name"
+      );
+      storyTitleValue = momNameProp?.value || "";
+    } else {
+      const titleProperty = order.line_items[0].properties.find(
+        (prop) => prop.name === "title"
+      );
+      storyTitleValue = titleProperty?.value || "";
+    }
+    
+    // Restore Dedication Line
+    let dedicationLineValue = "";
+    if (storyType?.value === "mother") {
+      const kidsNameProp = order.line_items[0].properties.find(
+        (prop) => prop.name === "kids_name"
+      );
+      const kidsName = kidsNameProp?.value || "";
+      dedicationLineValue = kidsName ? `By ${kidsName}` : "";
+    } else {
+      const dedicationProperty = order.line_items[0].properties.find(
+        (prop) => prop.name === "dedication_line"
+      );
+      dedicationLineValue = dedicationProperty?.value || "";
+      
+      if (!dedicationLineValue) {
+        const theirNameProperty = order.line_items[0].properties.find(
+          (prop) => prop.name === "their_name"
+        );
+        const yourNameProperty = order.line_items[0].properties.find(
+          (prop) => prop.name === "your_name"
+        );
+        
+        const theirName = theirNameProperty?.value || "";
+        const yourName = yourNameProperty?.value || "";
+        
+        if (theirName && yourName) {
+          dedicationLineValue = `For ${theirName}, By ${yourName}`;
+        }
+      }
+    }
+    
+    // Update state for all fields
+    setMilestoneDates((prev) => ({
+      ...prev,
+      [order.id]: milestoneDateValue,
+    }));
+    
+    setStoryTitles((prev) => ({
+      ...prev,
+      [order.id]: storyTitleValue,
+    }));
+    
+    setDedicationLines((prev) => ({
+      ...prev,
+      [order.id]: dedicationLineValue,
+    }));
+    
+    // Update input fields directly for immediate feedback
+    const milestoneDateInput = document.getElementById("milestone-date") as HTMLInputElement;
+    const storyTitleInput = document.getElementById("story-title") as HTMLInputElement;
+    const dedicationLineInput = document.getElementById("dedication-line") as HTMLInputElement;
+    
+    if (milestoneDateInput) milestoneDateInput.value = milestoneDateValue;
+    if (storyTitleInput) storyTitleInput.value = storyTitleValue;
+    if (dedicationLineInput) dedicationLineInput.value = dedicationLineValue;
+    
+    toast.success("All fields restored from order data", { autoClose: 2000 });
+  };
+
+  /**
+   * Handler to save all fields at once
+   */
+  const handleSaveAllFields = (order) => {
+    console.log("Saving all fields for order:", order.id);
+    
+    // Save Milestone Date
+    handleSaveMetafield(order.id, "story-date", milestoneDates[order.id] || "");
+    
+    // Save Story Title
+    handleSaveMetafield(order.id, "story-title", storyTitles[order.id] || "");
+    
+    // Save Dedication Line
+    handleSaveMetafield(order.id, "story-dedication", dedicationLines[order.id] || "");
+    
+    toast.success("All fields saved successfully!", { autoClose: 2000 });
+  };
+
   // Helper functions to check if fields are in sync
   const isDedicationLineInSync = (order) => {
     const metafield = order.metafields?.find(
@@ -2350,19 +2484,19 @@ const OrdersPage = () => {
 
                                 if (storyType?.value === "mother") {
                                   console.log("This is a mother story type");
-                                  // Get story-language property or default to 'en'
+                                  // For mother stories, use localized "A Mother's Story" based on language
                                   const languageProp = selectedOrder.line_items[0].properties.find(
                                     (prop) => prop.name === "story-language"
                                   );
                                   const language = languageProp?.value || "en";
 
-                                  let milestoneValue = "A Mother's Story";
-
-                                  // Translate based on language
+                                  let milestoneValue = "";
                                   if (language === "ar") {
                                     milestoneValue = "قصّة أمّ";
                                   } else if (language === "fr") {
                                     milestoneValue = "L'histoire d'une mère";
+                                  } else {
+                                    milestoneValue = "A Mother's Story";
                                   }
 
                                   // Force update the DOM by using a timeout
@@ -2659,6 +2793,33 @@ const OrdersPage = () => {
                               <span className="material-symbols-outlined">save</span>
                             </button>
                           </div>
+                        </div>
+
+                        {/* Bulk Actions for Fields */}
+                        <div className="mt-6 mb-4 flex justify-center space-x-4">
+                          <button
+                            onClick={() => handleRestoreAllFields(selectedOrder)}
+                            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md flex items-center"
+                            disabled={isMobile()} /* Disable on mobile */
+                            title="Restore All Fields"
+                          >
+                            <span className="material-symbols-outlined mr-2">restore</span>
+                            Restore All
+                          </button>
+                          <button
+                            onClick={() => handleSaveAllFields(selectedOrder)}
+                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center"
+                            disabled={
+                              (isMilestoneDateInSync(selectedOrder) && 
+                               isStoryTitleInSync(selectedOrder) && 
+                               isDedicationLineInSync(selectedOrder)) || 
+                              isMobile()
+                            } /* Disable on mobile or if all fields are in sync */
+                            title="Save All Fields"
+                          >
+                            <span className="material-symbols-outlined mr-2">save</span>
+                            Save All
+                          </button>
                         </div>
 
                         {/* Subdomain Input & Actions */}
@@ -3181,7 +3342,7 @@ const OrdersPage = () => {
               {isScannerPaused && (
                 <button
                   onClick={() => setIsScannerPaused(false)}
-                  className="w-full p-3 mt-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+                  className="w-full p-3 mt-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors border-gray-400 border"
                   title="Scan Again"
                 >
                   SCAN AGAIN
@@ -3202,7 +3363,7 @@ const OrdersPage = () => {
                   console.log("Setting NFC URL to:", fullUrl);
                   setIsNfcWriteModalOpen(true);
                 }}
-                className="w-1/2 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="w-1/2 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors border-gray-400 border"
                 title="Skip to NFC"
               >
                 SKIP TO NFC
@@ -3214,7 +3375,7 @@ const OrdersPage = () => {
                   setIsSubdomainCheckOpen(false);
                   setIsScannerPaused(false); // Reset for next time
                 }}
-                className="w-1/2 py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                className="w-1/2 py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors border-gray-400 border"
                 title="Close Scanner"
               >
                 CLOSE
