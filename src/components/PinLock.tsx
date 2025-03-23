@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import VersionDisplay from './VersionDisplay';
 
 interface PinLockProps {
   onPinVerified?: () => void;
@@ -48,11 +49,11 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
         localStorage.setItem('pinSessionToken', data.token);
         localStorage.setItem('pinSessionExpiresAt', data.expiresAt);
         localStorage.setItem('isAuthenticated', 'true');
-        
+
         if (onPinVerified) {
           onPinVerified();
         }
-        
+
         if (redirectPath) {
           router.push(redirectPath);
         }
@@ -126,9 +127,8 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className={`w-12 h-12 border-2 rounded-lg flex items-center justify-center text-2xl font-bold ${
-                i < pin.length ? 'border-gray-500 bg-gray-700 text-gray-200' : 'border-gray-700 bg-gray-800 text-gray-600'
-              }`}
+              className={`w-12 h-12 border-2 rounded-lg flex items-center justify-center text-2xl font-bold ${i < pin.length ? 'border-gray-500 bg-gray-700 text-gray-200' : 'border-gray-700 bg-gray-800 text-gray-600'
+                }`}
               aria-label={i < pin.length ? 'PIN digit entered' : 'PIN digit empty'}
             >
               {i < pin.length ? '•' : ''}
@@ -187,6 +187,7 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
             <span className="text-lg">Verifying PIN...</span>
           </div>
         )}
+        <div className="ml-auto"><VersionDisplay /></div>
       </div>
     </div>
   );

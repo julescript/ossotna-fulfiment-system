@@ -4,7 +4,7 @@ import "react-toastify/dist/ReactToastify.css";
 import dynamic from 'next/dynamic'; // Import dynamic from Next.js
 import ImageUploadModal from '../components/ImageUploadModal';
 import LogoutButton from '../components/LogoutButton';
-
+import VersionDisplay from '../components/VersionDisplay';
 // Dynamically import QR Scanner components
 const Scanner = dynamic(() => import('@yudiel/react-qr-scanner').then(mod => mod.Scanner), { ssr: false });
 // Custom hook for fetching orders:
@@ -102,46 +102,46 @@ const OrdersPage = () => {
     setSelectedOrder(order);
     setIsModalOpen(true);
   };
-  
+
   // Handle sending preview link
   const handleSendPreviewLink = (order) => {
     if (!order) return;
-    
+
     try {
       const phoneNumber = getPhoneNumber(order);
       if (!phoneNumber) {
         toast.error('No phone number available for this order');
         return;
       }
-      
+
       // Format the phone number for WhatsApp
       const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
-      
+
       // Get the story URL from metafields
       const storyUrl = order.metafields?.find(
         (mf) => mf.namespace === "custom" && mf.key === "story-url"
       )?.value;
-      
+
       // Get the password if it exists
       const passwordProperty = order.line_items[0].properties.find(
         (prop) => prop.name === "password"
       );
-      
+
       // If no story URL is available
       if (!storyUrl) {
         toast.error('No story URL available for this order');
         return;
       }
-      
+
       // Create the preview message
       const previewMessage = `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${storyUrl}.ossotna.com/\n${passwordProperty
         ? `password: ${passwordProperty.value}`
         : ""
-      }\n\nHope you like it as much as we do!`;
-      
+        }\n\nHope you like it as much as we do!`;
+
       // Generate WhatsApp URL based on device
       const whatsappUrl = getWhatsAppUrl(cleanPhone, previewMessage);
-      
+
       // Open WhatsApp link in a new tab
       window.open(whatsappUrl, '_blank');
       toast.success('Preview link sent via WhatsApp');
@@ -150,27 +150,27 @@ const OrdersPage = () => {
       toast.error(`Error: ${error.message || 'Unknown error sending preview link to client'}`);
     }
   };
-  
+
   // Handle sending delivery message
   const handleSendDeliveryMessage = async (order) => {
     if (!order) return;
-    
+
     try {
       const phoneNumber = getPhoneNumber(order);
       if (!phoneNumber) {
         toast.error('No phone number available for this order');
         return;
       }
-      
+
       // Format the phone number for WhatsApp
       const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
-      
+
       // Create delivery message text
       const messageText = `📦 Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you!`
-      
+
       // Generate WhatsApp URL based on device
       const whatsappUrl = getWhatsAppUrl(cleanPhone, messageText);
-      
+
       // Open WhatsApp link in a new tab
       window.open(whatsappUrl, '_blank');
       toast.success('WhatsApp message ready to send');
@@ -179,22 +179,22 @@ const OrdersPage = () => {
       toast.error(`Error: ${error.message || 'Unknown error sending delivery message'}`);
     }
   };
-  
+
   // Show confirmation before fulfilling order
   const handleFulfillOrder = (order) => {
     if (!order) return;
     setOrderToFulfill(order);
     setShowFulfillConfirmation(true);
   };
-  
+
   // Actually fulfill the order after confirmation
   const confirmFulfillOrder = async () => {
     if (!orderToFulfill) return;
-    
+
     try {
       setIsFulfilling(true);
       setShowFulfillConfirmation(false);
-      
+
       const response = await fetch('/api/shopify/fulfillment', {
         method: 'POST',
         headers: {
@@ -204,18 +204,18 @@ const OrdersPage = () => {
           orderId: orderToFulfill.id
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         if (data.warning) {
           // Order was fulfilled but not marked as paid
           console.warn('Warning from API:', data.warning, data.details);
-          
+
           // Check if it's the common "already paid" error
-          const alreadyPaidMessage = data.details?.some(error => 
+          const alreadyPaidMessage = data.details?.some(error =>
             error.message && error.message.toLowerCase().includes('already paid'));
-            
+
           if (alreadyPaidMessage) {
             toast.success('Order marked as fulfilled (was already paid)');
           } else {
@@ -249,7 +249,7 @@ const OrdersPage = () => {
   useEffect(() => {
     // If no orders exist, do nothing.
     if (!orders || orders.length === 0) return;
-  
+
     // We use JSON.stringify(orders) as the dependency so that changes
     // in the orders’ content (even if length stays the same) will trigger this effect.
     // (Note: For production code, consider using a deep comparison hook instead.)
@@ -273,7 +273,7 @@ const OrdersPage = () => {
       });
       return updated ? newStatuses : prev;
     });
-  
+
     // Update subdomains.
     setSubdomains(prev => {
       let updated = false;
@@ -287,7 +287,7 @@ const OrdersPage = () => {
       });
       return updated ? newSubs : prev;
     });
-  
+
     // Update dedication lines.
     setDedicationLines(prev => {
       let updated = false;
@@ -306,7 +306,7 @@ const OrdersPage = () => {
       });
       return updated ? newDedications : prev;
     });
-  
+
     // Update story titles.
     setStoryTitles(prev => {
       let updated = false;
@@ -325,7 +325,7 @@ const OrdersPage = () => {
       });
       return updated ? newTitles : prev;
     });
-  
+
     // Update milestone dates.
     setMilestoneDates(prev => {
       let updated = false;
@@ -344,7 +344,7 @@ const OrdersPage = () => {
       });
       return updated ? newMilestones : prev;
     });
-    
+
     // We list JSON.stringify(orders) as the dependency so that any change in the orders' content (e.g., metafields loading)
     // will trigger this effect.
   }, [JSON.stringify(orders)]);
@@ -417,7 +417,7 @@ const OrdersPage = () => {
     console.error(err);
     toast.error("Failed to access camera", { autoClose: 2000 });
   };
-  
+
 
 
   // Generate and download a QR code (SVG)
@@ -530,7 +530,7 @@ const OrdersPage = () => {
       await saveMetafieldAPI(order.id, "story-photos", "json_string", JSON.stringify(photoUrls));
 
       toast.success(`Images processed and uploaded for ${folderName}!`, { autoClose: 2000 });
-      // Optionally refetch orders to get the new metafields
+      // Optionally, refresh orders to get the new metafields
       fetchOrders(limit);
     } catch (error) {
       console.error("Error uploading images:", error);
@@ -581,35 +581,35 @@ const OrdersPage = () => {
       subdomains[order.id] ||
       order.line_items[0].properties.find((prop) => prop.name === "subdomain")?.value ||
       "No story-id available";
-      
+
     const storyTitleValue =
       storyTitles[order.id] ||
       order.line_items[0].properties.find((prop) => prop.name === "title")?.value ||
       "No story title available";
-      
+
     const dedicationLineValue =
       dedicationLines[order.id] ||
       order.line_items[0].properties.find((prop) => prop.name === "dedication_line")?.value ||
       "No dedication line available";
-  
+
     // Get milestone date if available (do not return anything if missing)
     const milestoneCandidate =
       milestoneDates[order.id] ||
       order.line_items[0].properties.find((prop) => prop.name === "milestone date")?.value;
-  
+
     // Build the initial text string with the key fields.
     let textToCopy =
       `Order ID: ${order.name}\n` +
       `Subdomain: ${subdomainValue}\n` +
       `Story Title: ${storyTitleValue}\n` +
       `Dedication Line: ${dedicationLineValue}\n`;
-  
+
     // Only add the milestone date if a value is present.
     if (milestoneCandidate) {
       textToCopy += `Milestone Date: ${milestoneCandidate}\n`;
     }
     textToCopy += "\n";
-  
+
     // 2. Prepare the rest of the line-item properties.
     // Exclude keys that are either internal or already handled as key fields.
     const excludedKeys = [
@@ -624,35 +624,35 @@ const OrdersPage = () => {
       "dedication_line",
       "milestone date"
     ];
-  
+
     const remainingProperties = order.line_items[0].properties.filter(
       (prop) => !excludedKeys.includes(prop.name)
     );
-  
+
     // 3. Process photo-related properties by checking for a "story-photos" metafield.
     const storyPhotosMetafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-photos"
     );
-  
+
     // Process photo-related properties if story-photos metafield exists
     let propertiesToUse = [...remainingProperties];
-    
+
     if (storyPhotosMetafield) {
       try {
         const storyPhotoUrls = JSON.parse(storyPhotosMetafield.value);
-        
+
         // Filter out any existing photo properties - we'll replace them entirely
-        propertiesToUse = propertiesToUse.filter(prop => 
-          !prop.name.includes('photo') && 
-          !prop.name.includes('photos') && 
+        propertiesToUse = propertiesToUse.filter(prop =>
+          !prop.name.includes('photo') &&
+          !prop.name.includes('photos') &&
           !prop.name.match(/chapter_\d+_photo/)
         );
-        
+
         // Add photo properties only from the story-photos metafield
         if (storyPhotoUrls && storyPhotoUrls.length > 0) {
           // Check if authors_note_photo exists in the original properties
           const hasAuthorsNote = remainingProperties.some(prop => prop.name === "authors_note_photo");
-          
+
           // If authors_note_photo exists in properties, keep the traditional mapping
           if (hasAuthorsNote) {
             // Add authors_note_photo (first photo)
@@ -662,7 +662,7 @@ const OrdersPage = () => {
                 value: storyPhotoUrls[0]
               });
             }
-            
+
             // Add numbered chapter photos
             for (let i = 1; i < storyPhotoUrls.length - 1; i++) {
               if (storyPhotoUrls[i]) {
@@ -672,7 +672,7 @@ const OrdersPage = () => {
                 });
               }
             }
-            
+
             // Add epilogue_photo if it exists (last photo)
             if (storyPhotoUrls.length > 1) {
               propertiesToUse.push({
@@ -686,12 +686,12 @@ const OrdersPage = () => {
             for (let i = 0; i < storyPhotoUrls.length - 1; i++) {
               if (storyPhotoUrls[i]) {
                 propertiesToUse.push({
-                  name: `chapter_${i+1}_photo`,
+                  name: `chapter_${i + 1}_photo`,
                   value: storyPhotoUrls[i]
                 });
               }
             }
-            
+
             // Add epilogue_photo if it exists (last photo)
             if (storyPhotoUrls.length > 0) {
               propertiesToUse.push({
@@ -706,16 +706,16 @@ const OrdersPage = () => {
         // If there's an error parsing, keep the original properties
       }
     }
-  
+
     // 4. Append all remaining properties to the text.
     textToCopy += propertiesToUse
       .map((prop) => `${prop.name}: ${prop.value}`)
       .join("\n");
-  
+
     // 5. Copy the final text to the clipboard and store it for the story modal.
     setClipboardContent(textToCopy);
     setSelectedOrder(order);
-    
+
     navigator.clipboard.writeText(textToCopy).then(
       () => toast.success(`${order.name} properties copied`, { autoClose: 2000 }),
       (err) => {
@@ -759,12 +759,12 @@ const OrdersPage = () => {
     const storyUrlMetafield = order.metafields?.find(
       (mf) => mf.namespace === "custom" && mf.key === "story-url"
     );
-    
+
     if (storyUrlMetafield?.value) {
       const subdomain = storyUrlMetafield.value;
       const domainOnly = `${subdomain}.ossotna.com`;
       const fullUrl = `https://${domainOnly}`;
-      
+
       if (isMobile()) {
         // For mobile, open the NFC write modal with the complete URL
         console.log("Setting NFC URL from handleCopySubdomainOpenNFC:", fullUrl);
@@ -1093,7 +1093,7 @@ const OrdersPage = () => {
         toast.error("Invalid price entered.", { autoClose: 2000 });
         return;
       }
-      
+
       // Convert back to string for API compatibility
       customItemPrice = parsedPrice.toString();
 
@@ -1230,7 +1230,7 @@ const OrdersPage = () => {
       try {
         // Pause the scanner to prevent multiple scans
         setIsScannerPaused(true);
-        
+
         const scannedText = detectedCodes[0].rawValue.trim();
 
         // Attempt to parse the scanned text as a URL
@@ -1292,10 +1292,10 @@ const OrdersPage = () => {
       try {
         const data = detectedCodes[0].rawValue;
         console.log("Delivery scan data:", data);
-        
+
         // Assuming the QR code contains a Shopify order URL or ID
         let orderId;
-        
+
         // Try to parse as URL first
         try {
           const url = new URL(data);
@@ -1305,17 +1305,17 @@ const OrdersPage = () => {
           // If not a URL, use the raw value as the order ID
           orderId = data.trim();
         }
-        
+
         console.log("Extracted order ID for delivery:", orderId);
-        
+
         // Find the order with the extracted orderId
         const order = orders.find(o => o.id === String(orderId) || o.name === String(orderId));
-        
+
         if (order) {
           // Set current order and loading state
           setCurrentScanOrder(order);
           setScanStatus("loading");
-          
+
           // Only update the metafield status without creating a fulfillment
           saveStatusAPI(order.id, "Ready for Delivery")
             .then(() => {
@@ -1324,10 +1324,10 @@ const OrdersPage = () => {
                 ...prev,
                 [order.id]: "Ready for Delivery"
               }));
-              
+
               // Show success state
               setScanStatus("success");
-              
+
               // Reset after a delay to allow for the next scan
               setTimeout(() => {
                 setScanStatus("ready");
@@ -1336,10 +1336,10 @@ const OrdersPage = () => {
             })
             .catch(error => {
               console.error("Error updating order status:", error);
-              
+
               // Show error state
               setScanStatus("error");
-              
+
               // Reset after a delay
               setTimeout(() => {
                 setScanStatus("ready");
@@ -1365,7 +1365,7 @@ const OrdersPage = () => {
       }
     }
   };
-  
+
   /**
    * Handler for errors during delivery QR scanning
    * @param {Error} err - The error encountered
@@ -1391,10 +1391,10 @@ const OrdersPage = () => {
 
   const formatLebanesePhoneNumber = (phone) => {
     if (!phone) return '';
-    
+
     // Remove any non-digit characters
     const digits = phone.replace(/\D/g, '');
-    
+
     // Format with Lebanese country code
     if (digits.startsWith('0')) {
       // If it starts with 0, replace with Lebanese country code
@@ -1407,23 +1407,23 @@ const OrdersPage = () => {
       return `+${digits}`;
     }
   };
-  
+
   // Format phone number for WhatsApp (wa.me format requires no + sign)
   const formatPhoneForWhatsApp = (phone) => {
     const formattedPhone = formatLebanesePhoneNumber(phone);
     return formattedPhone.replace(/\+/g, '');
   };
-  
+
   // Determine if we should use web.whatsapp.com or wa.me based on device
   const getWhatsAppUrl = (phoneNumber, message = '') => {
     // Check if we're on a mobile device
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+
     // For mobile, use wa.me which will open the app
     if (isMobile) {
       return `https://wa.me/${phoneNumber}${message ? `?text=${encodeURIComponent(message)}` : ''}`;
     }
-    
+
     // For desktop, use web.whatsapp.com which will open in browser
     return `https://web.whatsapp.com/send?phone=${phoneNumber}${message ? `&text=${encodeURIComponent(message)}` : ''}`;
   };
@@ -1476,7 +1476,7 @@ const OrdersPage = () => {
           <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mr-2" />
           <LogoutButton />
         </div>
-        
+
         {/* Mobile Navigation - Fixed at top */}
         <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex justify-between items-center border-b border-gray-500 px-4">
           {/* <div className="flex-1"></div> */}
@@ -1485,7 +1485,7 @@ const OrdersPage = () => {
             <LogoutButton />
           </div>
         </div>
-        
+
         {/* Mobile Footer Navigation */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-700 p-4 flex flex-col gap-3 border-t border-gray-400 shadow-lg">
           <button
@@ -1496,7 +1496,7 @@ const OrdersPage = () => {
             <span className="material-symbols-outlined">qr_code_scanner</span>
             <span className="font-medium text-lg">Scan Order Label</span>
           </button>
-          
+
           <button
             onClick={() => setIsDeliveryScanOpen(true)}
             className="p-4 bg-green-600 text-white rounded-md shadow-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 w-full flex items-center justify-center gap-2 transition-colors border-gray-400 border"
@@ -1506,10 +1506,10 @@ const OrdersPage = () => {
             <span className="font-medium text-lg">Mark Ready for Delivery</span>
           </button>
         </div>
-        
+
         {/* Spacer for fixed mobile navigation */}
         {/* <div className="md:hidden h-16"></div> */}
-        
+
         {/* Spacer for fixed mobile footer */}
         <div className="md:hidden h-14 mb-4"></div>
 
@@ -1531,6 +1531,9 @@ const OrdersPage = () => {
             <option value="250">250</option>
           </select>
 
+          {/* Version Display */}
+          <div className="ml-auto mt-0 md:mt-4"><VersionDisplay /></div>
+
           {/* Top Right Buttons */}
           <div className="fixed top-6 right-6 md:flex hidden space-x-4">
             {/* QR Code Camera Button - Desktop only */}
@@ -1541,7 +1544,7 @@ const OrdersPage = () => {
             >
               <span className="material-symbols-outlined">qr_code_scanner</span>
             </button>
-            
+
             {/* Image Upload Button - Desktop only */}
             <button
               onClick={() => setIsImageUploadModalOpen(true)}
@@ -1631,7 +1634,7 @@ const OrdersPage = () => {
 
                           {/* 1) Quick Hello Button */}
                           <a
-                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), 
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)),
                               `Hello ${order?.shipping_address?.first_name}`
                             )}
                             target="_blank"
@@ -1643,7 +1646,7 @@ const OrdersPage = () => {
 
                           {/* 2) Thank You / Intro Message Button */}
                           <a
-                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), 
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)),
                               `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                             )}
                             target="_blank"
@@ -1720,17 +1723,17 @@ const OrdersPage = () => {
                               onClick={() => {
                                 const customURL = getOrderURL(order);
                                 const randomDigits = Math.floor(10000 + Math.random() * 90000);
-                                
+
                                 // Check if story type is mother
                                 const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "";
                                 let prefix = "book-";
-                                
+
                                 if (storyType.toLowerCase() === "mother") {
                                   prefix = "mom-";
                                 }
-                                
+
                                 const fallback = `${prefix}${randomDigits}`;
-                                
+
                                 setSubdomains((prev) => ({
                                   ...prev,
                                   [order.id]: customURL || fallback,
@@ -1787,7 +1790,7 @@ const OrdersPage = () => {
                           {(() => {
                             const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "Standard";
                             let bgColor = "bg-gray-600";
-                            
+
                             if (storyType.toLowerCase() === "mother") {
                               bgColor = "bg-purple-600";
                             } else if (storyType.toLowerCase() === "love") {
@@ -1795,7 +1798,7 @@ const OrdersPage = () => {
                             } else if (storyType.toLowerCase() === "friendship") {
                               bgColor = "bg-blue-800";
                             }
-                            
+
                             return (
                               <div className={`mt-2 mb-2 p-2 ${bgColor} rounded text-white font-bold`}>
                                 {storyType.toUpperCase()}
@@ -1829,21 +1832,21 @@ const OrdersPage = () => {
                               {order.line_items[0].properties
                                 .filter((p) => ["title", "dedication_line"].includes(p.name))
                                 .map((prop) => (
-                                <div key={prop.name}>
-                                  {/^https?:\/\/\S+/.test(prop.value) ? (
-                                    <a
-                                      href={prop.value}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-blue-500 underline"
-                                    >
-                                      {prop.value}
-                                    </a>
-                                  ) : (
-                                    prop.value
-                                  )}
-                                </div>
-                              ))}
+                                  <div key={prop.name}>
+                                    {/^https?:\/\/\S+/.test(prop.value) ? (
+                                      <a
+                                        href={prop.value}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-500 underline"
+                                      >
+                                        {prop.value}
+                                      </a>
+                                    ) : (
+                                      prop.value
+                                    )}
+                                  </div>
+                                ))}
                             </>
                           )}
                           <b>
@@ -1869,7 +1872,7 @@ const OrdersPage = () => {
                             >
                               <span className="material-symbols-outlined">content_copy</span>
                             </button>
-                            
+
                             {/* Generate Story */}
                             <button
                               className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-purple-700 hover:bg-purple-900 hidden md:block"
@@ -1899,9 +1902,7 @@ const OrdersPage = () => {
                               aria-label="Process & Upload Images"
                             >
                               {loadingOrders[order.id] ? (
-                                <span className="material-symbols-outlined">
-                                  arrow_upload_progress
-                                </span>
+                                <span className="material-symbols-outlined">arrow_upload_progress</span>
                               ) : (
                                 <span className="material-symbols-outlined">cloud_upload</span>
                               )}
@@ -1985,7 +1986,6 @@ const OrdersPage = () => {
                               <span className="material-symbols-outlined">language</span>
                             </button>
 
-                            {/* Open Subdomain in Localhost */}
                             <button
                               className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
                               onClick={(e) => {
@@ -2021,11 +2021,11 @@ const OrdersPage = () => {
         </div>
 
         {/* Image Upload Modal */}
-        <ImageUploadModal 
-          isOpen={isImageUploadModalOpen} 
-          onClose={() => setIsImageUploadModalOpen(false)} 
+        <ImageUploadModal
+          isOpen={isImageUploadModalOpen}
+          onClose={() => setIsImageUploadModalOpen(false)}
         />
-        
+
         {/* Story Generation Modal */}
         {isStoryModalOpen && selectedOrder && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2052,7 +2052,7 @@ const OrdersPage = () => {
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
-              
+
               <div className="flex flex-col md:flex-row gap-4 flex-grow overflow-hidden">
                 {/* Left side - Clipboard Content */}
                 <div className="flex-1 flex flex-col overflow-hidden">
@@ -2068,7 +2068,7 @@ const OrdersPage = () => {
                     ></textarea>
                   </div>
                 </div>
-                
+
                 {/* Right side - Generated Story */}
                 <div className="flex-1 flex flex-col overflow-hidden">
                   <h6 className="text-sm font-light mb-2 dark:text-white">Generated Story</h6>
@@ -2092,7 +2092,7 @@ const OrdersPage = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex justify-end mt-4 gap-2">
                 <button
                   onClick={() => {
@@ -2141,7 +2141,7 @@ const OrdersPage = () => {
             </div>
           </div>
         )}
-        
+
         <ToastContainer />
       </div>
       {isModalOpen && selectedOrder && (
@@ -2170,7 +2170,7 @@ const OrdersPage = () => {
               <div className="block md:sticky top-0 p-4 md:p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between relative">
                 <div className="flex flex-col flex-1 pr-10">
                   <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <button
                       className="px-3 py-1 bg-purple-500 text-white rounded-md text-sm hover:bg-purple-600 transition-colors"
                       onClick={() => {
@@ -2230,18 +2230,18 @@ const OrdersPage = () => {
                       qr={generatedQRCodes[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
                     />
-                    
+
                     {/* Story Type Display and Shopify Button - Both Mobile and Desktop */}
                     <div className="w-full px-4 py-2 flex justify-center items-center gap-3 mb-4">
                       {(() => {
                         const storyType = selectedOrder.line_items[0].properties.find(
                           (prop) => prop.name === "story-type"
                         )?.value || "Standard";
-                        
+
                         // Define color based on story type
                         let bgColor = "bg-gray-500";
                         let textColor = "text-white";
-                        
+
                         if (storyType === "mother") {
                           bgColor = "bg-pink-500";
                         } else if (storyType === "love") {
@@ -2249,7 +2249,7 @@ const OrdersPage = () => {
                         } else if (storyType === "friendship") {
                           bgColor = "bg-blue-500";
                         }
-                        
+
                         return (
                           <div className={`${bgColor} ${textColor} px-4 py-2 rounded-full font-medium text-sm inline-flex items-center`}>
                             <span className="material-symbols-outlined mr-1">auto_stories</span>
@@ -2257,7 +2257,7 @@ const OrdersPage = () => {
                           </div>
                         );
                       })()}
-                      
+
                       {/* Shopify Order Button */}
                       <button
                         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full text-sm flex items-center gap-1"
@@ -2337,17 +2337,17 @@ const OrdersPage = () => {
                                 console.log("Load Milestone Date button clicked");
                                 console.log("Selected Order:", selectedOrder);
                                 console.log("Order Properties:", selectedOrder.line_items[0].properties);
-                                
+
                                 // Check if story type is mother
                                 const storyType = selectedOrder.line_items[0].properties.find(
                                   (prop) => prop.name === "story-type"
                                 );
                                 console.log("Story Type:", storyType);
-                                
+
                                 // Check all property names to help debug
                                 const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
                                 console.log("All property names:", propertyNames);
-                                
+
                                 if (storyType?.value === "mother") {
                                   console.log("This is a mother story type");
                                   // Get story-language property or default to 'en'
@@ -2355,16 +2355,16 @@ const OrdersPage = () => {
                                     (prop) => prop.name === "story-language"
                                   );
                                   const language = languageProp?.value || "en";
-                                  
+
                                   let milestoneValue = "A Mother's Story";
-                                  
+
                                   // Translate based on language
                                   if (language === "ar") {
                                     milestoneValue = "قصّة أمّ";
                                   } else if (language === "fr") {
                                     milestoneValue = "L'histoire d'une mère";
                                   }
-                                  
+
                                   // Force update the DOM by using a timeout
                                   setTimeout(() => {
                                     setMilestoneDates((prev) => ({
@@ -2372,7 +2372,7 @@ const OrdersPage = () => {
                                       [selectedOrder.id]: milestoneValue,
                                     }));
                                   }, 0);
-                                  
+
                                   // Also update the input field directly for immediate feedback
                                   const inputField = document.getElementById("milestone-date") as HTMLInputElement;
                                   if (inputField) {
@@ -2383,7 +2383,7 @@ const OrdersPage = () => {
                                   // Try all possible property name variations
                                   const possibleNames = ["milestone_date", "milestone date", "milestone-date"];
                                   let value = "";
-                                  
+
                                   for (const name of possibleNames) {
                                     const property = selectedOrder.line_items[0].properties.find(
                                       (prop) => prop.name === name
@@ -2393,7 +2393,7 @@ const OrdersPage = () => {
                                       break;
                                     }
                                   }
-                                  
+
                                   // Force update the DOM by using a timeout
                                   setTimeout(() => {
                                     setMilestoneDates((prev) => ({
@@ -2401,7 +2401,7 @@ const OrdersPage = () => {
                                       [selectedOrder.id]: value,
                                     }));
                                   }, 0);
-                                  
+
                                   // Also update the input field directly for immediate feedback
                                   const inputField = document.getElementById("milestone-date") as HTMLInputElement;
                                   if (inputField) {
@@ -2461,17 +2461,17 @@ const OrdersPage = () => {
                                 console.log("Load Story Title button clicked");
                                 console.log("Selected Order:", selectedOrder);
                                 console.log("Order Properties:", selectedOrder.line_items[0].properties);
-                                
+
                                 // Check if story type is mother
                                 const storyType = selectedOrder.line_items[0].properties.find(
                                   (prop) => prop.name === "story-type"
                                 );
                                 console.log("Story Type:", storyType);
-                                
+
                                 // Check all property names to help debug
                                 const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
                                 console.log("All property names:", propertyNames);
-                                
+
                                 if (storyType?.value === "mother") {
                                   console.log("This is a mother story type");
                                   // For mother story, use mom_name from product properties
@@ -2480,7 +2480,7 @@ const OrdersPage = () => {
                                   );
                                   console.log("Mom Name Property:", momNameProp);
                                   const momName = momNameProp?.value || "";
-                                  
+
                                   // Force update the DOM by using a timeout
                                   setTimeout(() => {
                                     setStoryTitles((prev) => ({
@@ -2488,7 +2488,7 @@ const OrdersPage = () => {
                                       [selectedOrder.id]: momName,
                                     }));
                                   }, 0);
-                                  
+
                                   // Also update the input field directly for immediate feedback
                                   const inputField = document.getElementById("story-title") as HTMLInputElement;
                                   if (inputField) {
@@ -2500,7 +2500,7 @@ const OrdersPage = () => {
                                     (prop) => prop.name === "title"
                                   );
                                   const value = property?.value || "";
-                                  
+
                                   // Force update the DOM by using a timeout
                                   setTimeout(() => {
                                     setStoryTitles((prev) => ({
@@ -2508,7 +2508,7 @@ const OrdersPage = () => {
                                       [selectedOrder.id]: value,
                                     }));
                                   }, 0);
-                                  
+
                                   // Also update the input field directly for immediate feedback
                                   const inputField = document.getElementById("story-title") as HTMLInputElement;
                                   if (inputField) {
@@ -2568,17 +2568,17 @@ const OrdersPage = () => {
                                 console.log("Load Dedication Line button clicked");
                                 console.log("Selected Order:", selectedOrder);
                                 console.log("Order Properties:", selectedOrder.line_items[0].properties);
-                                
+
                                 // Check if story type is mother
                                 const storyType = selectedOrder.line_items[0].properties.find(
                                   (prop) => prop.name === "story-type"
                                 );
                                 console.log("Story Type:", storyType);
-                                
+
                                 // Check all property names to help debug
                                 const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
                                 console.log("All property names:", propertyNames);
-                                
+
                                 if (storyType?.value === "mother") {
                                   console.log("This is a mother story type");
                                   // For mother story, use "By {kids_name}"
@@ -2587,9 +2587,9 @@ const OrdersPage = () => {
                                   );
                                   console.log("Kids Name Property:", kidsNameProp);
                                   const kidsName = kidsNameProp?.value || "";
-                                  
+
                                   const dedicationValue = kidsName ? `By ${kidsName}` : "";
-                                  
+
                                   // Force update the DOM by using a timeout
                                   setTimeout(() => {
                                     setDedicationLines((prev) => ({
@@ -2597,7 +2597,7 @@ const OrdersPage = () => {
                                       [selectedOrder.id]: dedicationValue,
                                     }));
                                   }, 0);
-                                  
+
                                   // Also update the input field directly for immediate feedback
                                   const inputField = document.getElementById("dedication-line") as HTMLInputElement;
                                   if (inputField) {
@@ -2635,7 +2635,7 @@ const OrdersPage = () => {
                                       [selectedOrder.id]: value,
                                     }));
                                   }, 0);
-                                  
+
                                   // Also update the input field directly for immediate feedback
                                   const inputField = document.getElementById("dedication-line") as HTMLInputElement;
                                   if (inputField) {
@@ -2708,30 +2708,30 @@ const OrdersPage = () => {
 
                   {/* Mobile Fixed Footer for Subdomain Actions */}
                   <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-700 p-3 border-t border-gray-400 shadow-lg">
-                      <div className="flex flex-col gap-3">
-                        
+                    <div className="flex flex-col gap-3">
+
                       <div className="flex flex-row gap-3">
-                      <div className="w-1/2">
-                        {/* <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div> */}
-                        <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
-                      </div>
-                      
-                      {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
-                      <button
+                        <div className="w-1/2">
+                          {/* <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div> */}
+                          <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
+                        </div>
+
+                        {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
+                        <button
                           className="p-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
                           onClick={(e) => {
-                          e.stopPropagation();
-                          // Open QR code scanner first
-                          setIsSubdomainCheckOpen(true);
-                        }}
-                        title="Write URL to NFC Tag"
-                        aria-label="Write URL to NFC Tag"
-                      >
-                        <span className="material-symbols-outlined">nfc</span>
-                        <span className="font-medium text-sm md:text-lg">Prepare NFC Card</span>
-                      </button>
+                            e.stopPropagation();
+                            // Open QR code scanner first
+                            setIsSubdomainCheckOpen(true);
+                          }}
+                          title="Write URL to NFC Tag"
+                          aria-label="Write URL to NFC Tag"
+                        >
+                          <span className="material-symbols-outlined">nfc</span>
+                          <span className="font-medium text-sm md:text-lg">Prepare NFC Card</span>
+                        </button>
                       </div>
-                      
+
                       {/* Delivery Message and Fulfill Order Buttons - Side by side on mobile */}
                       <div className="flex flex-row gap-3">
                         {/* Delivery Message Button */}
@@ -2747,7 +2747,7 @@ const OrdersPage = () => {
                           <span className="material-symbols-outlined">send</span>
                           <span className="font-medium text-sm md:text-lg">Delivery Msg</span>
                         </button>
-                        
+
                         {/* Fulfill Order Button */}
                         <button
                           className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors border-gray-400 border"
@@ -2800,7 +2800,7 @@ const OrdersPage = () => {
 
                       {/* 1) Quick Hello Button */}
                       <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), 
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)),
                           `Hello ${selectedOrder?.shipping_address?.first_name}`
                         )}
                         target="_blank"
@@ -2812,7 +2812,7 @@ const OrdersPage = () => {
 
                       {/* 2) Thank You / Intro Message Button */}
                       <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), 
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)),
                           `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
                         )}
                         target="_blank"
@@ -2956,16 +2956,16 @@ const OrdersPage = () => {
                         </button>
 
                         <button
-                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopySubdomainAndOpenLocalhost(selectedOrder);
-                              }}
-                              title="Open Subdomain in Localhost"
-                              aria-label="Open Subdomain in Localhost"
-                            >
-                              <span className="material-symbols-outlined">dns</span>
-                            </button>
+                          className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopySubdomainAndOpenLocalhost(selectedOrder);
+                          }}
+                          title="Open Subdomain in Localhost"
+                          aria-label="Open Subdomain in Localhost"
+                        >
+                          <span className="material-symbols-outlined">dns</span>
+                        </button>
 
                         <div className="w-full"></div>
 
@@ -3086,7 +3086,7 @@ const OrdersPage = () => {
             {/* QR Scanner Container */}
             <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
               <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">Scan order label QR Code</p>
-              
+
               {/* QR Scanner with better support for all QR code types */}
               <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
                 <Scanner
@@ -3098,7 +3098,7 @@ const OrdersPage = () => {
                 />
               </div>
             </div>
-              
+
             {/* Close Button */}
             <button
               onClick={() => setIsCameraOpen(false)}
@@ -3118,23 +3118,23 @@ const OrdersPage = () => {
             {/* QR Scanner Container */}
             <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
               <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">
-                {scanStatus === "ready" ? "Scan label to mark as Ready for Delivery" : 
-                 scanStatus === "loading" ? `Processing Order ${currentScanOrder?.name || ''}...` :
-                 scanStatus === "success" ? `Order ${currentScanOrder?.name || ''} marked as Ready for Delivery` :
-                 `Error: ${currentScanOrder?.error || 'Unknown error'}`}
+                {scanStatus === "ready" ? "Scan label to mark as Ready for Delivery" :
+                  scanStatus === "loading" ? `Processing Order ${currentScanOrder?.name || ''}...` :
+                    scanStatus === "success" ? `Order ${currentScanOrder?.name || ''} marked as Ready for Delivery` :
+                      `Error: ${currentScanOrder?.error || 'Unknown error'}`}
               </p>
-              
+
               {/* Status Indicator */}
               {scanStatus !== "ready" && (
-                <div className={`mb-4 p-3 rounded-md text-center font-medium ${scanStatus === "loading" ? "bg-blue-100 text-blue-800 border border-blue-200" : 
-                                                              scanStatus === "success" ? "bg-green-100 text-green-800 border border-green-200" : 
-                                                              "bg-red-100 text-red-800 border border-red-200"}`}>
+                <div className={`mb-4 p-3 rounded-md text-center font-medium ${scanStatus === "loading" ? "bg-blue-100 text-blue-800 border border-blue-200" :
+                  scanStatus === "success" ? "bg-green-100 text-green-800 border border-green-200" :
+                    "bg-red-100 text-red-800 border border-red-200"}`}>
                   {scanStatus === "loading" && "Updating order status..."}
                   {scanStatus === "success" && "Success! Ready for next scan..."}
                   {scanStatus === "error" && "Error! Try again..."}
                 </div>
               )}
-              
+
               {/* QR Scanner for delivery status */}
               <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
                 <Scanner
@@ -3146,7 +3146,7 @@ const OrdersPage = () => {
                 />
               </div>
             </div>
-              
+
             {/* Close Button */}
             <button
               onClick={() => setIsDeliveryScanOpen(false)}
@@ -3176,7 +3176,7 @@ const OrdersPage = () => {
                   styles={{ container: { width: '100%', height: '100%' } }}
                 />
               </div>
-              
+
               {/* Scan Again button - only shown when scanner is paused */}
               {isScannerPaused && (
                 <button
@@ -3202,19 +3202,19 @@ const OrdersPage = () => {
                   console.log("Setting NFC URL to:", fullUrl);
                   setIsNfcWriteModalOpen(true);
                 }}
-                className="w-1/2 p-4 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                className="w-1/2 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 title="Skip to NFC"
               >
                 SKIP TO NFC
               </button>
-              
+
               {/* Close Button */}
               <button
                 onClick={() => {
                   setIsSubdomainCheckOpen(false);
                   setIsScannerPaused(false); // Reset for next time
                 }}
-                className="w-1/2 p-4 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+                className="w-1/2 py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
                 title="Close Scanner"
               >
                 CLOSE
@@ -3223,16 +3223,16 @@ const OrdersPage = () => {
           </div>
         </div>
       )}
-      
+
       {/* Fulfill Order Confirmation Modal */}
       {showFulfillConfirmation && orderToFulfill && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Confirm Order Fulfillment</h3>
-            
+
             <div className="mb-6 text-gray-700 dark:text-gray-300">
               <p className="mb-4">Are you sure you want to mark this order as fulfilled and paid?</p>
-              
+
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-4">
                 <p className="font-medium mb-2">Order Details:</p>
                 <p><span className="font-medium">Order:</span> {orderToFulfill.name}</p>
@@ -3242,7 +3242,7 @@ const OrdersPage = () => {
                   <p><span className="font-medium">Items:</span> {orderToFulfill.currencyCode} {orderToFulfill.subtotalPriceSet?.shopMoney?.amount || '0.00'}</p>
                   <p><span className="font-medium">Shipping:</span> {orderToFulfill.currencyCode} {orderToFulfill.shipping_lines?.[0]?.price || '0.00'}</p>
                 </div>
-                
+
                 {/* Prominent Total Amount */}
                 <div className="mt-4 p-4 bg-green-100 dark:bg-green-900 rounded-lg text-center">
                   <p className="text-sm font-medium text-green-800 dark:text-green-200">TOTAL TO COLLECT</p>
@@ -3251,10 +3251,10 @@ const OrdersPage = () => {
                   </p>
                 </div>
               </div>
-              
+
               <p className="text-sm text-red-500">This action cannot be undone!</p>
             </div>
-            
+
             <div className="flex w-full mt-6 gap-3">
               <button
                 className="w-1/2 py-3 bg-gray-300 hover:bg-gray-400 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors font-medium"
@@ -3283,38 +3283,38 @@ const OrdersPage = () => {
           </div>
         </div>
       )}
-      
+
       {/* NFC Writing Modal for Android */}
       {isNfcWriteModalOpen && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center ">
           <div className="flex flex-col items-center w-11/12 max-w-md">
             <div className="relative bg-white dark:bg-gray-800 p-6 rounded-md w-full border-gray-400 border">
               <h3 className="text-lg font-medium text-center mb-4 text-gray-900 dark:text-white">Write URL to NFC Tag</h3>
-              
+
               <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
                 On Android, you can write this URL to an NFC tag. Place your phone near an NFC tag when ready.
               </p>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">URL to write:</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={nfcUrl}
                   onChange={(e) => setNfcUrl(e.target.value)}
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   disabled={isNfcWriting}
                 />
               </div>
-              
+
               <div className="flex flex-col items-center justify-center mb-4">
                 <div className={`w-24 h-24 mb-4 flex items-center justify-center rounded-full transition-all duration-500 ${isNfcWriting ? 'bg-blue-500 dark:bg-blue-600 shadow-lg shadow-blue-500/50 animate-pulse' : isNfcVerifying ? 'bg-green-500 dark:bg-green-600 shadow-lg shadow-green-500/50 animate-pulse' : 'bg-blue-100 dark:bg-blue-900'}`}>
                   <span className={`material-symbols-outlined text-4xl transition-all duration-500 ${isNfcWriting || isNfcVerifying ? 'text-white animate-bounce' : 'text-blue-600 dark:text-blue-300'}`}>{isNfcVerifying ? 'check_circle' : 'nfc'}</span>
                 </div>
                 <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                  {isNfcWriting ? 'Bring your phone close to an NFC tag to write...' : 
-                   isNfcVerifying ? 'Tap the tag again to verify the written URL...' : 
-                   nfcWriteAttempts > 0 ? `Previous attempt failed. Try again (Attempt ${nfcWriteAttempts + 1}/3)` :
-                   'Tap the button below to start NFC writing mode.'}
+                  {isNfcWriting ? 'Bring your phone close to an NFC tag to write...' :
+                    isNfcVerifying ? 'Tap the tag again to verify the written URL...' :
+                      nfcWriteAttempts > 0 ? `Previous attempt failed. Try again (Attempt ${nfcWriteAttempts + 1}/3)` :
+                        'Tap the button below to start NFC writing mode.'}
                 </p>
                 {nfcWriteAttempts > 0 && !isNfcWriting && !isNfcVerifying && (
                   <p className="text-center text-xs text-red-500 mt-2">
@@ -3322,7 +3322,7 @@ const OrdersPage = () => {
                   </p>
                 )}
               </div>
-              
+
               {/* Display the last read URL if available */}
               {lastReadUrl && (
                 <div className="mb-4 p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800">
@@ -3335,7 +3335,7 @@ const OrdersPage = () => {
                   )}
                 </div>
               )}
-              
+
               <div className="flex flex-col gap-3">
                 {/* Show Done button if verification is complete */}
                 {showDoneButton && !isNfcWriting && !isNfcVerifying && (
@@ -3369,14 +3369,14 @@ const OrdersPage = () => {
                     Done
                   </button>
                 )}
-                
+
                 <button
                   onClick={() => {
                     // Reset verification state if retrying
                     if (nfcWriteAttempts > 0) {
                       console.log(`Retrying NFC write. Attempt ${nfcWriteAttempts + 1}/3`);
                     }
-                    
+
                     // On Android, this will try to use the Web NFC API
                     if ('NDEFReader' in window) {
                       try {
@@ -3384,82 +3384,82 @@ const OrdersPage = () => {
                         setIsNfcVerifying(false);
                         setVerificationCompleted(false);
                         const ndef = new (window as any).NDEFReader();
-                        
+
                         console.log("Starting NFC writing with URL:", nfcUrl);
-                        
+
                         // Validate URL format before writing
                         let urlToWrite = nfcUrl;
                         if (!urlToWrite.startsWith('https://') && !urlToWrite.startsWith('http://')) {
                           urlToWrite = 'https://' + urlToWrite;
                           console.log("URL format corrected to:", urlToWrite);
                         }
-                        
+
                         // Set up a scan listener to detect when a tag is in range
                         ndef.addEventListener('reading', ({ message, serialNumber }) => {
                           console.log(`> Serial Number: ${serialNumber}`);
                           console.log(`> Records: (${message.records.length})`);
                           console.log(`> Writing URL: ${urlToWrite}`);
-                          
+
                           // Write only the URL to the tag
                           ndef.write({
                             records: [{ recordType: "url", data: urlToWrite }]
                           }).then(() => {
                             toast.success("URL written to NFC tag! Verifying...");
-                            
+
                             // After writing, switch to verification mode
                             setIsNfcWriting(false);
                             setIsNfcVerifying(true);
-                            
+
                             // Try to read the tag to verify the content
                             console.log("Starting NFC verification...");
-                            
+
                             // Read the tag to verify
                             ndef.scan().then(() => {
                               console.log("Verification scan started. Please tap the tag again.");
-                              
+
                               // Set a timeout for verification
                               setTimeout(() => {
                                 if (isNfcVerifying && !verificationCompleted) {
                                   setIsNfcVerifying(false);
                                   setVerificationCompleted(true);
                                   toast.error("Verification timed out. You can try writing again or proceed.");
-                                  
+
                                   // Keep modal open to allow retry
                                   // Don't update order status automatically, wait for user to confirm
                                 }
                               }, 30000);
-                              
+
                             }).catch(error => {
                               console.error("Error starting verification scan:", error);
                               setIsNfcVerifying(false);
                               setVerificationCompleted(true);
                               setShowDoneButton(true); // Show done button even if verification fails
                               toast.error("Could not verify the tag. You can try writing again or proceed.");
-                              
+
                               // Don't close the modal, allow user to retry or proceed
                               // Don't update order status automatically, wait for user to confirm
                             });
-                            
+
                             // Add a new reading event listener specifically for verification
                             ndef.addEventListener('reading', ({ message, serialNumber }) => {
                               // Only process if we're verifying and haven't completed verification yet
                               if (isNfcVerifying && !verificationCompleted) {
                                 console.log(`Verification - Serial Number: ${serialNumber}`);
                                 console.log(`Verification - Records: (${message.records.length})`);
-                                
+
                                 let verificationPassed = false;
-                                
+
                                 // Check if any of the records match our URL
                                 for (const record of message.records) {
                                   if (record.recordType === "url") {
                                     const decoder = new TextDecoder();
                                     const url = decoder.decode(record.data);
                                     console.log(`Verification - Read URL: ${url}`);
-                                    
+
                                     // Store the last read URL for display
                                     setLastReadUrl(url);
                                     setShowDoneButton(true);
-                                    
+
                                     // Compare with the URL we tried to write
                                     if (url === urlToWrite) {
                                       console.log("Verification successful - URLs match!");
@@ -3470,11 +3470,11 @@ const OrdersPage = () => {
                                     }
                                   }
                                 }
-                                
+
                                 setIsNfcVerifying(false);
                                 // Mark verification as completed to prevent multiple processing
                                 setVerificationCompleted(true);
-                                
+
                                 if (verificationPassed) {
                                   toast.success("Verification successful! Correct URL written to tag.");
                                   // Keep modal open to show the Done button
@@ -3483,13 +3483,13 @@ const OrdersPage = () => {
                                   // Increment attempt counter but keep modal open
                                   setNfcWriteAttempts(prev => prev + 1);
                                   toast.error(`Verification failed. The written URL may be different from what was intended.`);
-                                  
+
                                   // Keep modal open to allow retry or manual confirmation
                                   // The user can now see what was written and decide to retry or proceed
                                 }
                               }
                             });
-                            
+
                             // Helper function to update order status
                             function updateOrderStatus() {
                               if (selectedOrder && selectedOrder.id) {
@@ -3513,14 +3513,14 @@ const OrdersPage = () => {
                             toast.error("Failed to write to NFC tag: " + error.message);
                           });
                         });
-                        
+
                         // Start scanning for NFC tags
                         ndef.scan().catch((error) => {
                           setIsNfcWriting(false);
                           console.error(error);
                           toast.error("Error scanning for NFC tag: " + error.message);
                         });
-                        
+
                         // Add a timeout to cancel if no tag is found after 30 seconds
                         setTimeout(() => {
                           if (isNfcWriting) {
@@ -3528,7 +3528,7 @@ const OrdersPage = () => {
                             toast.error("NFC operation timed out. Please try again.");
                           }
                         }, 30000);
-                        
+
                       } catch (error: any) {
                         setIsNfcWriting(false);
                         console.error(error);
@@ -3541,12 +3541,12 @@ const OrdersPage = () => {
                   disabled={isNfcWriting || isNfcVerifying}
                   className={`border-gray-400 border w-full p-3 text-white rounded-md font-medium transition-all duration-300 ${isNfcWriting || isNfcVerifying ? 'bg-blue-400 cursor-not-allowed' : nfcWriteAttempts > 0 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
-                  {isNfcWriting ? 'Writing to NFC Tag...' : 
-                   isNfcVerifying ? 'Verifying NFC Tag...' : 
-                   nfcWriteAttempts > 0 ? `Retry NFC Writing (Attempt ${nfcWriteAttempts + 1}/3)` : 
-                   'Start NFC Writing'}
+                  {isNfcWriting ? 'Writing to NFC Tag...' :
+                    isNfcVerifying ? 'Verifying NFC Tag...' :
+                      nfcWriteAttempts > 0 ? `Retry NFC Writing (Attempt ${nfcWriteAttempts + 1}/3)` :
+                        'Start NFC Writing'}
                 </button>
-                
+
                 <button
                   onClick={() => {
                     if (!isNfcWriting && !isNfcVerifying) {
