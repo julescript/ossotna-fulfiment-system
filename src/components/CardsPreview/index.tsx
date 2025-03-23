@@ -92,9 +92,9 @@ const OnePDFWithTwoFrames = ({
       const [overlay2EmbeddedPage] = await pdfDoc.embedPdf(overlay2PdfBytes);
 
       // Load fonts.
-      const vollkornRegular = await opentype.load("/vollkorn.ttf");
-      const vollkornBold = await opentype.load("/vollkorn-bold.ttf");
-      const vollkornItalic = await opentype.load("/vollkorn-italic.ttf");
+      const vollkornRegular = await opentype.load("/Vollkorn-Regular.ttf");
+      const vollkornBold = await opentype.load("/Vollkorn-Bold.ttf");
+      const vollkornItalic = await opentype.load("/Vollkorn-Italic.ttf");
       const notoSansMono = await opentype.load("/NotoSansMono-Bold.ttf");
 
       // Draw Left Card.
