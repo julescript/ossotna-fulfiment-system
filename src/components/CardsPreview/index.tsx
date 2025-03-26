@@ -44,6 +44,7 @@ interface OnePDFWithTwoFramesProps {
   overlay2?: string;
   qr?: string;
   onSendCardPreview?: (imageData: string) => void;
+  onSendToPrinter?: (pdfUrl: string) => void;
 }
 
 // Define the ref interface
@@ -52,6 +53,7 @@ export interface OnePDFWithTwoFramesRef {
   convertPdfToImage: () => Promise<string | null>;
   getImageData: () => string | null;
   handleSend: () => Promise<void>;
+  handlePrint: () => void;
 }
 
 const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFramesProps>(({
@@ -62,6 +64,7 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
   overlay1 = "/overlay1.pdf",
   overlay2 = "/overlay2.pdf",
   onSendCardPreview,
+  onSendToPrinter,
 }, ref) => {
   const [isLoading, setIsLoading] = useState(false);
   const [pdfData, setPdfData] = useState(null);
@@ -310,12 +313,23 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
     }
   };
 
+  const handlePrint = () => {
+    if (!downloadUrl) return;
+    
+    if (onSendToPrinter) {
+      onSendToPrinter(downloadUrl);
+    } else {
+      toast.info("Print functionality not configured");
+    }
+  };
+
   // Expose functions through ref
   useImperativeHandle(ref, () => ({
     generatePDF,
     convertPdfToImage,
     getImageData: () => imageData,
-    handleSend
+    handleSend,
+    handlePrint
   }));
 
   useEffect(() => {
@@ -343,7 +357,7 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       <div className="flex gap-4 m-2">
         <button
           onClick={generatePDF}
-          className="w-1/3 px-4 py-2 bg-yellow-700 text-white hover:bg-yellow-900 disabled:opacity-50"
+          className="w-1/4 px-2 py-2 bg-yellow-700 text-white hover:bg-yellow-900 disabled:opacity-50"
           disabled={isLoading}
         >
           {isLoading ? "Generating..." : "Generate"}
@@ -351,7 +365,7 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
 
         <button
           onClick={handleDownload}
-          className="w-1/3 px-4 py-2 bg-blue-700 text-white hover:bg-blue-900 disabled:opacity-50"
+          className="w-1/4 px-2 py-2 bg-blue-700 text-white hover:bg-blue-900 disabled:opacity-50"
           disabled={!downloadUrl}
         >
           Download
@@ -359,10 +373,18 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
 
         <button
           onClick={handleSend}
-          className="w-1/3 px-4 py-2 bg-green-700 text-white hover:bg-green-900 disabled:opacity-50"
+          className="w-1/4 px-2 py-2 bg-green-700 text-white hover:bg-green-900 disabled:opacity-50"
           disabled={!pdfData}
         >
           Send
+        </button>
+
+        <button
+          onClick={handlePrint}
+          className="w-1/4 px-2 py-2 bg-purple-700 text-white hover:bg-purple-900 disabled:opacity-50"
+          disabled={!downloadUrl}
+        >
+          Print
         </button>
       </div>
     </div>

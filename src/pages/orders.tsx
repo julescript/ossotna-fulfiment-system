@@ -96,7 +96,6 @@ const OrdersPage = () => {
     "Ready for Delivery",
   ];
 
-
   const subdomainValue = (order) => {
     return subdomains[order.id] || "";
   }
@@ -1158,11 +1157,11 @@ const OrdersPage = () => {
   };
 
   /**
- * Generic handler to save a metafield.
- * @param {string} orderId - The ID of the order.
- * @param {string} key - The metafield key.
- * @param {string} value - The value to save.
- */
+   * Generic handler to save a metafield.
+   * @param {string} orderId - The ID of the order.
+   * @param {string} key - The metafield key.
+   * @param {string} value - The value to save.
+   */
   const handleSaveMetafield = async (orderId, key, value) => {
     try {
       await saveMetafieldAPI(orderId, key, "single_line_text_field", value); // Assuming 'string' type
@@ -1413,10 +1412,68 @@ const OrdersPage = () => {
     }
   };
 
+  // Function to determine the number of cards needed based on variant title
+  const getCardQuantityFromVariant = (variantTitle) => {
+    if (!variantTitle) return 1; // Default to 1 if no variant title
+    
+    const variantLower = variantTitle.toLowerCase();
+    
+    if (variantLower.includes('solo')) {
+      return 1; // SOLO = 1 card
+    } else if (variantLower.includes('unity') || variantLower.includes('dual')) {
+      return 2; // UNITY or DUAL = 2 cards
+    }
+    
+    // Default to 1 if we can't determine
+    return 1;
+  };
+
+  // Handle sending PDF to printing company via WhatsApp
+  const handleSendToPrinter = async (pdfUrl) => {
+    if (!selectedOrder) return;
+
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading('Preparing print order...');
+      
+      // Get the number of cards needed based on variant
+      const variantTitle = selectedOrder.line_items[0]?.variant_title || '';
+      const cardQuantity = getCardQuantityFromVariant(variantTitle);
+      
+      // Fixed WhatsApp number for the printing company (Lebanese format)
+      const printerPhoneNumber = "+96170958877"; // Replace with the actual printer's number
+      
+      // Create the print order message
+      const orderNumber = selectedOrder.name;
+      const customerName = selectedOrder.shipping_address?.name || 'Customer';
+      
+      const printMessage = `Hello, ${cardQuantity}x card${cardQuantity > 1 ? 's' : ''} 🙏`.trim();
+      
+      // Create a temporary link to download the PDF
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `Ossotna ${cardQuantity} card${cardQuantity > 1 ? 's' : ''} ${selectedOrder.name.replace('#', '')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Open WhatsApp with the message - no need to format the fixed number
+      const whatsappUrl = getWhatsAppUrl(printerPhoneNumber, printMessage);
+      window.open(whatsappUrl, '_blank');
+      
+      // Dismiss loading toast and show success message
+      toast.dismiss(loadingToast);
+      toast.success('Print order prepared. Please attach the downloaded PDF to the WhatsApp message.');
+    } catch (error) {
+      console.error('Error sending to printer:', error);
+      toast.error(`Error: ${error.message || 'Unknown error sending to printer'}`);
+    }
+  };
+
   /**
- * Handler for scanning the QR code and comparing subdomains.
- * @param {Object} data - The data returned from the QR scanner.
- */
+   * Handler for scanning the QR code and comparing subdomains.
+   * @param {Object} data - The data returned from the QR scanner.
+   */
   // State to track if scanner is paused after mismatch
   const [isScannerPaused, setIsScannerPaused] = useState(false);
 
@@ -1865,11 +1922,6 @@ const OrdersPage = () => {
                                 <span className="material-symbols-outlined">Draft</span>
                               </button>
                             )}
-
-                          <div className={`md:hidden w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery"
-                            ? "border-green-500 text-green-500 dark:bg-green-900"
-                            : "border-gray-300"
-                            }`}><i>{storyStatuses[order.id] || "New Order"}</i></div>
                         </div>
 
                         {/* Column 2: Subdomain Input & Actions */}
@@ -2426,6 +2478,7 @@ const OrdersPage = () => {
                       qr={generatedQRCodes[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
                       onSendCardPreview={handleSendCardPreview}
+                      onSendToPrinter={handleSendToPrinter}
                     />
 
                     {/* Story Type Display and Shopify Button - Both Mobile and Desktop */}
@@ -3410,7 +3463,7 @@ const OrdersPage = () => {
 
             <div className="flex w-full mt-6 gap-3">
               <button
-                className="w-1/2 py-3 bg-gray-300 hover:bg-gray-400 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors font-medium"
+                className="w-1/2 py-3 bg-gray-300 hover:bg-gray-400 text-gray-500 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-400 transition-colors"
                 onClick={() => setShowFulfillConfirmation(false)}
               >
                 Cancel
@@ -3741,6 +3794,5 @@ const isDesktop = () => {
   }
   return false;
 };
-
 
 export default OrdersPage;
