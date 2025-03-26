@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import dynamic from 'next/dynamic'; // Import dynamic from Next.js
@@ -23,7 +23,7 @@ import {
   saveStatusAPI,
   markOrderReadyForDeliveryAPI,
 } from "../services/orderService";
-import TwoFramesPreview from "@/components/CardsPreview";
+import TwoFramesPreview, { OnePDFWithTwoFramesRef } from "@/components/CardsPreview";
 import Image from "next/image";
 
 const OrdersPage = () => {
@@ -31,6 +31,9 @@ const OrdersPage = () => {
   const { orders, limit, setLimit, isLoading, fetchOrders } = useOrders();
   // Add this alongside your existing useState declarations
   const [isSubdomainCheckOpen, setIsSubdomainCheckOpen] = useState(false);
+
+  // Ref for the TwoFramesPreview component
+  const cardPreviewRef = useRef<OnePDFWithTwoFramesRef>(null);
 
   // For subdomain inputs
   const [subdomains, setSubdomains] = useState({});
@@ -836,7 +839,7 @@ const OrdersPage = () => {
           price: customItemPrice.toString(), // must be a string
           quantity: 1,
           taxable: false, // Usually non-physical items aren't taxable
-          requires_shipping: false, // Non-physical => no shipping
+          requires_shipping: false, // Non-physical items don't require shipping
         });
       }
 
@@ -1181,7 +1184,16 @@ const OrdersPage = () => {
 
   const handleSaveStoryTitle = (orderId, storyTitle) => {
     console.log("handleSaveMetafield", orderId, storyTitle)
-    handleSaveMetafield(orderId, "story-title", storyTitle);
+    // Use multi_line_text_field for story title since it can now contain multiple lines
+    saveMetafieldAPI(orderId, "story-title", "multi_line_text_field", storyTitle)
+      .then(() => {
+        toast.success(`story title saved successfully!`, { autoClose: 2000 });
+        fetchOrders(limit); // Refresh orders to get updated metafields
+      })
+      .catch(error => {
+        console.error(`Error saving story title:`, error);
+        toast.error(`Failed to save story title!`, { autoClose: 2000 });
+      });
   };
 
   const handleSaveMilestoneDate = (orderId, milestoneDate) => {
@@ -1350,12 +1362,61 @@ const OrdersPage = () => {
     return milestoneDates[order.id] === metafield.value;
   };
 
-  // Add these handler functions inside your OrdersPage component
+  // Handle sending card preview as image via WhatsApp
+  const handleSendCardPreview = async (imageData) => {
+    if (!selectedOrder) return;
+
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading('Preparing card preview...');
+      
+      // Get the phone number
+      const phoneNumber = getPhoneNumber(selectedOrder);
+      if (!phoneNumber) {
+        toast.dismiss(loadingToast);
+        toast.error('No phone number available for this order');
+        return;
+      }
+
+      // Format the phone number for WhatsApp
+      const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
+      
+      if (!imageData) {
+        toast.dismiss(loadingToast);
+        toast.error('Failed to generate card preview image');
+        return;
+      }
+      
+      // Create the preview message
+      const previewMessage = `Hello ${selectedOrder?.shipping_address?.first_name}, Please find attached the preview of your Ossotna card. Let me know if you'd like any changes before we proceed with printing.\n\nThank you!`;
+      
+      // Generate WhatsApp URL based on device
+      const whatsappUrl = getWhatsAppUrl(cleanPhone, previewMessage);
+      
+      // Create a temporary link to download the image
+      const link = document.createElement('a');
+      link.href = imageData;
+      link.download = `ossotna_card_${selectedOrder.name.replace('#', '')}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Dismiss loading toast and show success message
+      toast.dismiss(loadingToast);
+      toast.success('Card preview image downloaded. Please attach it to your WhatsApp message.');
+      
+      // Open WhatsApp with the message
+      window.open(whatsappUrl, '_blank');
+    } catch (error) {
+      console.error('Error sending card preview:', error);
+      toast.error(`Error: ${error.message || 'Unknown error sending card preview to client'}`);
+    }
+  };
 
   /**
-   * Handler for scanning the QR code and comparing subdomains.
-   * @param {Object} data - The data returned from the QR scanner.
-   */
+ * Handler for scanning the QR code and comparing subdomains.
+ * @param {Object} data - The data returned from the QR scanner.
+ */
   // State to track if scanner is paused after mismatch
   const [isScannerPaused, setIsScannerPaused] = useState(false);
 
@@ -2358,11 +2419,13 @@ const OrdersPage = () => {
                   {/* RIGHT HALF: Preview Cards */}
                   <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-0 md:gap-6 md:overflow-y-auto`}>
                     <TwoFramesPreview
+                      ref={cardPreviewRef}
                       milestoneDate={milestoneDates[selectedOrder.id]}
                       title={storyTitles[selectedOrder.id]}
                       dedicationLine={dedicationLines[selectedOrder.id]}
                       qr={generatedQRCodes[selectedOrder.id]}
                       subdomain={subdomainValue(selectedOrder)}
+                      onSendCardPreview={handleSendCardPreview}
                     />
 
                     {/* Story Type Display and Shopify Button - Both Mobile and Desktop */}
@@ -2567,8 +2630,7 @@ const OrdersPage = () => {
                             Story Title
                           </label>
                           <div className="mt-1 flex">
-                            <input
-                              type="text"
+                            <textarea
                               id="story-title"
                               value={storyTitles[selectedOrder.id] || ""}
                               onChange={(e) => setStoryTitles((prev) => ({
@@ -2581,6 +2643,8 @@ const OrdersPage = () => {
                                 }`}
                               placeholder="Enter story title"
                               readOnly={isMobile()} /* Make read-only on mobile */
+                              rows={3}
+                              style={{ resize: "vertical", minHeight: "80px" }}
                             />
                             <button
                               onClick={() => copyToClipboard(storyTitles[selectedOrder.id] || "")}
@@ -3077,13 +3141,6 @@ const OrdersPage = () => {
                           )}
                         </button>
 
-                        {/* Mini upload progress text */}
-                        {uploadProgress[selectedOrder.id] && (
-                          <div className="mt-1 text-xs text-white">
-                            Uploading {uploadProgress[selectedOrder.id].current} / {uploadProgress[selectedOrder.id].total}
-                          </div>
-                        )}
-
                         {/* Copy Images JSON Button */}
                         <button
                           className={`p-1 pt-2 pr-2 pl-2 ${selectedOrder.metafields?.some(
@@ -3316,71 +3373,6 @@ const OrdersPage = () => {
             >
               CLOSE
             </button>
-          </div>
-        </div>
-      )}
-
-      {isSubdomainCheckOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
-          <div className="flex flex-col items-center">
-            <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
-              <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">Scan QR Code to Compare Subdomain</p>
-
-              {/* QR Scanner with better support for all QR code types */}
-              <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
-                {/* Only render the Scanner component when it's actively needed */}
-                <Scanner
-                  onScan={handleSubdomainScan}
-                  onError={handleSubdomainError}
-                  constraints={{ facingMode: 'environment' }}
-                  scanDelay={300}
-                  styles={{ container: { width: '100%', height: '100%' } }}
-                />
-              </div>
-
-              {/* Scan Again button - only shown when scanner is paused */}
-              {isScannerPaused && (
-                <button
-                  onClick={() => setIsScannerPaused(false)}
-                  className="w-full p-3 mt-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors border-gray-400 border"
-                  title="Scan Again"
-                >
-                  SCAN AGAIN
-                </button>
-              )}
-            </div>
-
-            <div className="flex w-full gap-3 mt-3">
-              {/* Skip Button */}
-              <button
-                onClick={() => {
-                  setIsSubdomainCheckOpen(false);
-                  setIsScannerPaused(false); // Reset for next time
-                  // Open NFC modal with the current subdomain
-                  const currentSubdomain = subdomainValue(selectedOrder);
-                  const fullUrl = `https://${currentSubdomain}.ossotna.com`;
-                  setNfcUrl(fullUrl);
-                  console.log("Setting NFC URL to:", fullUrl);
-                  setIsNfcWriteModalOpen(true);
-                }}
-                className="w-1/2 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors border-gray-400 border"
-                title="Skip to NFC"
-              >
-                SKIP TO NFC
-              </button>
-
-              {/* Close Button */}
-              <button
-                onClick={() => {
-                  setIsSubdomainCheckOpen(false);
-                  setIsScannerPaused(false); // Reset for next time
-                }}
-                className="w-1/2 py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors border-gray-400 border"
-                title="Close Scanner"
-              >
-                CLOSE
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -3729,7 +3721,6 @@ const OrdersPage = () => {
           </div>
         </div>
       )}
-
     </>
   );
 };

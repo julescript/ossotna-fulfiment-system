@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import opentype from "opentype.js";
@@ -34,34 +34,69 @@ export const generateQrCodePdf = async (svgString, subdomain) => {
   return pdfBlob;
 };
 
-const OnePDFWithTwoFrames = ({
+// Define the component props interface
+interface OnePDFWithTwoFramesProps {
+  milestoneDate?: string;
+  title?: string;
+  dedicationLine?: string;
+  subdomain?: string;
+  overlay1?: string;
+  overlay2?: string;
+  qr?: string;
+  onSendCardPreview?: (imageData: string) => void;
+}
+
+// Define the ref interface
+export interface OnePDFWithTwoFramesRef {
+  generatePDF: () => Promise<void>;
+  convertPdfToImage: () => Promise<string | null>;
+  getImageData: () => string | null;
+  handleSend: () => Promise<void>;
+}
+
+const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFramesProps>(({
   milestoneDate = "01/01/2025",
   title = "A Special Title That Might Span Multiple Lines",
   dedicationLine = "With all my love",
   subdomain = "example",
   overlay1 = "/overlay1.pdf",
   overlay2 = "/overlay2.pdf",
-}) => {
+  onSendCardPreview,
+}, ref) => {
   const [isLoading, setIsLoading] = useState(false);
   const [pdfData, setPdfData] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState(null);
+  const [imageData, setImageData] = useState(null);
 
   // Helper: wrap text into lines that do not exceed maxWidth
   const wrapText = (text, font, fontSize, maxWidth) => {
-    const words = text.split(" ");
+    // First split by explicit line breaks
+    const paragraphs = text.split('\n');
     let lines = [];
-    let currentLine = "";
-    for (let word of words) {
-      const testLine = currentLine ? currentLine + " " + word : word;
-      const testLineWidth = font.getAdvanceWidth(testLine, fontSize);
-      if (testLineWidth > maxWidth && currentLine !== "") {
-        lines.push(currentLine);
-        currentLine = word;
-      } else {
-        currentLine = testLine;
+    
+    // Then process each paragraph for word wrapping
+    for (let paragraph of paragraphs) {
+      const words = paragraph.split(" ");
+      let currentLine = "";
+      
+      // If this is an empty paragraph (just a line break), add an empty line
+      if (words.length === 1 && words[0] === "") {
+        lines.push("");
+        continue;
       }
+      
+      for (let word of words) {
+        const testLine = currentLine ? currentLine + " " + word : word;
+        const testLineWidth = font.getAdvanceWidth(testLine, fontSize);
+        if (testLineWidth > maxWidth && currentLine !== "") {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
     }
-    if (currentLine) lines.push(currentLine);
     return lines;
   };
 
@@ -219,6 +254,31 @@ const OnePDFWithTwoFrames = ({
     }
   };
 
+  // Function to convert the PDF preview to an image
+  const convertPdfToImage = async () => {
+    try {
+      if (!pdfData) {
+        await generatePDF();
+      }
+      
+      // Get the PDF preview element
+      const pdfElement = document.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
+      if (!pdfElement) {
+        throw new Error('PDF preview element not found');
+      }
+      
+      // Convert the canvas to a data URL
+      const dataUrl = pdfElement.toDataURL('image/jpeg', 0.8);
+      setImageData(dataUrl);
+      
+      return dataUrl;
+    } catch (error) {
+      console.error('Error converting PDF to image:', error);
+      toast.error('Failed to convert PDF to image');
+      return null;
+    }
+  };
+
   const handleDownload = () => {
     if (!downloadUrl) return;
     const filename = `ossotna card ${subdomain}.pdf`;
@@ -229,6 +289,34 @@ const OnePDFWithTwoFrames = ({
     a.click();
     document.body.removeChild(a);
   };
+
+  const handleSend = async () => {
+    try {
+      if (!pdfData) {
+        await generatePDF();
+      }
+      
+      // Convert PDF to image
+      const imageData = await convertPdfToImage();
+      
+      if (imageData && onSendCardPreview) {
+        onSendCardPreview(imageData);
+      } else {
+        toast.success("PDF ready to send!");
+      }
+    } catch (error) {
+      console.error('Error sending PDF:', error);
+      toast.error('Failed to send PDF');
+    }
+  };
+
+  // Expose functions through ref
+  useImperativeHandle(ref, () => ({
+    generatePDF,
+    convertPdfToImage,
+    getImageData: () => imageData,
+    handleSend
+  }));
 
   useEffect(() => {
     generatePDF();
@@ -255,22 +343,30 @@ const OnePDFWithTwoFrames = ({
       <div className="flex gap-4 m-2">
         <button
           onClick={generatePDF}
-          className="w-1/2 px-4 py-2 bg-yellow-700 text-white hover:bg-yellow-900 disabled:opacity-50"
+          className="w-1/3 px-4 py-2 bg-yellow-700 text-white hover:bg-yellow-900 disabled:opacity-50"
           disabled={isLoading}
         >
-          {isLoading ? "Regenerating PDF..." : "Regenerate PDF"}
+          {isLoading ? "Generating..." : "Generate"}
         </button>
 
         <button
           onClick={handleDownload}
-          className="w-1/2 px-4 py-2 bg-green-700 text-white hover:bg-green-900 disabled:opacity-50"
+          className="w-1/3 px-4 py-2 bg-blue-700 text-white hover:bg-blue-900 disabled:opacity-50"
           disabled={!downloadUrl}
         >
-          Download PDF
+          Download
+        </button>
+
+        <button
+          onClick={handleSend}
+          className="w-1/3 px-4 py-2 bg-green-700 text-white hover:bg-green-900 disabled:opacity-50"
+          disabled={!pdfData}
+        >
+          Send
         </button>
       </div>
     </div>
   );
-};
+});
 
 export default OnePDFWithTwoFrames;
