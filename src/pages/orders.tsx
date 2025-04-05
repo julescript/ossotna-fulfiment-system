@@ -167,8 +167,15 @@ const OrdersPage = () => {
       // Format the phone number for WhatsApp
       const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
 
-      // Create delivery message text
-      const messageText = `📦 Hello, we're delivering your Ossotna order ${order.name || ''}. Please share your location pin and have the exact amount prepared as we cannot guarantee change. Thank you!`
+      // Get customer name
+      const customerName = order?.shipping_address?.first_name || '';
+      
+      // Get the currency and total price using the same approach as in the fulfill order modal
+      const currencyCode = order.currencyCode || 'USD';
+      const totalAmount = order.totalPriceSet?.shopMoney?.amount || order.total_price || '75.00';
+      
+      // Create delivery message text with customer name and total amount
+      const messageText = `📦 Hello ${customerName}, we're delivering your Ossotna order ${order.name || ''}. Please share your location and have the exact amount of ${currencyCode} ${totalAmount} prepared as we cannot guarantee change. Thank you!`
 
       // Generate WhatsApp URL based on device
       const whatsappUrl = getWhatsAppUrl(cleanPhone, messageText);
