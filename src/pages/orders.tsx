@@ -3490,6 +3490,72 @@ const OrdersPage = () => {
         </div>
       )}
 
+
+{isSubdomainCheckOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
+              <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">Scan QR Code to Compare Subdomain</p>
+
+              {/* QR Scanner with better support for all QR code types */}
+              <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
+                {/* Only render the Scanner component when it's actively needed */}
+                <Scanner
+                  onScan={handleSubdomainScan}
+                  onError={handleSubdomainError}
+                  constraints={{ facingMode: 'environment' }}
+                  scanDelay={300}
+                  styles={{ container: { width: '100%', height: '100%' } }}
+                />
+              </div>
+
+              {/* Scan Again button - only shown when scanner is paused */}
+              {isScannerPaused && (
+                <button
+                  onClick={() => setIsScannerPaused(false)}
+                  className="w-full p-3 mt-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors border-gray-400 border"
+                  title="Scan Again"
+                >
+                  SCAN AGAIN
+                </button>
+              )}
+            </div>
+
+            <div className="flex w-full gap-3 mt-3">
+              {/* Skip Button */}
+              <button
+                onClick={() => {
+                  setIsSubdomainCheckOpen(false);
+                  setIsScannerPaused(false); // Reset for next time
+                  // Open NFC modal with the current subdomain
+                  const currentSubdomain = subdomainValue(selectedOrder);
+                  const fullUrl = `https://${currentSubdomain}.ossotna.com`;
+                  setNfcUrl(fullUrl);
+                  console.log("Setting NFC URL to:", fullUrl);
+                  setIsNfcWriteModalOpen(true);
+                }}
+                className="w-1/2 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors border-gray-400 border"
+                title="Skip to NFC"
+              >
+                SKIP TO NFC
+              </button>
+
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setIsSubdomainCheckOpen(false);
+                  setIsScannerPaused(false); // Reset for next time
+                }}
+                className="w-1/2 py-3 bg-gray-900 hover:bg-gray-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors border-gray-400 border"
+                title="Close Scanner"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* NFC Writing Modal for Android */}
       {isNfcWriteModalOpen && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center ">
