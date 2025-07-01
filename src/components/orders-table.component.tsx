@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { ToastContainer } from "react-toastify";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { formatPhoneForWhatsApp, getWhatsAppUrl } from "../utils/whatsapp";
 
 // Utility functions
 const getDefaultSubdomain = (order) => {
@@ -481,7 +482,7 @@ const Orders = () => {
                       {order?.shipping_address?.last_name}
                       <br />
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}`}
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(order?.shipping_address?.phone))}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-500 underline"
@@ -490,9 +491,7 @@ const Orders = () => {
                       </a>
                       <br />
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
-                          `Hello ${order?.shipping_address?.first_name}`
-                        )}`}
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(order?.shipping_address?.phone), `Hello ${order?.shipping_address?.first_name}`)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
@@ -500,9 +499,9 @@ const Orders = () => {
                        <span className="material-symbols-outlined">waving_hand</span>
                       </a>
                       <a
-                        href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(order?.shipping_address?.phone), 
                           `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
-                        )}`}
+                        )}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
@@ -512,14 +511,15 @@ const Orders = () => {
                       {/* Story Draft Link */}
                       {order.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-url") && (
                         <a
-                          href={`https://web.whatsapp.com/send?phone=${order?.shipping_address?.phone}&text=${encodeURIComponent(
+                          href={getWhatsAppUrl(
+                            formatPhoneForWhatsApp(order?.shipping_address?.phone),
                             `Hello ${order?.shipping_address?.first_name}, Please find below the first draft of your story. Feel free to point out any edits you'd like us to make.\n\nhttps://${order.metafields.find(
                               (mf) => mf.namespace === "custom" && mf.key === "story-url"
                             ).value}.ossotna.com/\n${order.line_items[0].properties.find((prop) => prop.name === "password")
                               ? `password: ${order.line_items[0].properties.find((prop) => prop.name === "password").value}`
                               : ""
                             }\n\nHope you like it as much as we do!`
-                          )}`}
+                          )}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"

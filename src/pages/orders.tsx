@@ -12,6 +12,7 @@ import { useOrders } from "../hooks/useOrders";
 
 // Utility functions:
 import { getDefaultSubdomain, getOrderURL, processQrCodeSvg } from "../utils/orderUtils";
+import { formatLebanesePhoneNumber, formatPhoneForWhatsApp, getWhatsAppUrl } from '../utils/whatsapp';
 
 // Service functions:
 import {
@@ -1648,44 +1649,8 @@ const OrdersPage = () => {
     window.open(shopifyOrderURL, "_blank", "noopener,noreferrer");
   };
 
-  const formatLebanesePhoneNumber = (phone) => {
-    if (!phone) return '';
+  // WhatsApp utility functions are now imported at the top of the file
 
-    // Remove any non-digit characters
-    const digits = phone.replace(/\D/g, '');
-
-    // Format with Lebanese country code
-    if (digits.startsWith('0')) {
-      // If it starts with 0, replace with Lebanese country code
-      return `+961${digits.slice(1)}`;
-    } else if (!digits.startsWith('961')) {
-      // If it doesn't already have the country code, add it
-      return `+961${digits}`;
-    } else {
-      // If it already has the country code but no +, add it
-      return `+${digits}`;
-    }
-  };
-
-  // Format phone number for WhatsApp (wa.me format requires no + sign)
-  const formatPhoneForWhatsApp = (phone) => {
-    const formattedPhone = formatLebanesePhoneNumber(phone);
-    return formattedPhone.replace(/\+/g, '');
-  };
-
-  // Determine if we should use web.whatsapp.com or wa.me based on device
-  const getWhatsAppUrl = (phoneNumber, message = '') => {
-    // Check if we're on a mobile device
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    // For mobile, use wa.me which will open the app
-    if (isMobile) {
-      return `https://wa.me/${phoneNumber}${message ? `?text=${encodeURIComponent(message)}` : ''}`;
-    }
-
-    // For desktop, use web.whatsapp.com which will open in browser
-    return `https://web.whatsapp.com/send?phone=${phoneNumber}${message ? `&text=${encodeURIComponent(message)}` : ''}`;
-  };
 
   const getPhoneNumber = (order) => {
     if (!order) return '';
