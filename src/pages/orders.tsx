@@ -132,6 +132,24 @@ const OrdersPage = () => {
     return "border-gray-500 text-gray-200 dark:bg-gray-700";
   };
 
+  const getPrintablesStatusSelectClassName = (value) => {
+    const v = (value || "").toString().toLowerCase();
+
+    if (v.includes("draft") || v.includes("review")) {
+      return "border-yellow-500 text-yellow-200 dark:bg-yellow-900";
+    }
+
+    if (v.includes("printing")) {
+      return "border-green-500 text-green-200 dark:bg-green-900";
+    }
+
+    if (v === "ready" || v.includes("ready")) {
+      return "border-sky-500 text-sky-200 dark:bg-sky-900";
+    }
+
+    return "border-gray-500 text-gray-200 dark:bg-gray-700";
+  };
+
   const subdomainValue = (order) => {
     return subdomains[order.id] || "";
   }
@@ -1902,7 +1920,7 @@ const OrdersPage = () => {
                     return (
                       <div
                         key={order.id}
-                        className={`grid grid-cols-12 md:grid-cols-[repeat(14,minmax(0,1fr))] border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${storyStages[order.id] === "Waiting" ? "bg-red-900" : (fulfillmentStatuses[order.id] === "Ready For Delivery" ? "bg-green-900" : (fulfillmentStatuses[order.id] === "Sent For Delivery" ? "bg-sky-200 dark:bg-sky-900" : ""))} min-w-0`}
+                        className={`grid grid-cols-12 md:grid-cols-[repeat(14,minmax(0,1fr))] border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${storyStages[order.id] === "Waiting" ? "bg-red-900" : (fulfillmentStatuses[order.id] === "Ready For Delivery" ? "bg-green-900" : (fulfillmentStatuses[order.id] === "Sent For Delivery" ? "bg-sky-200 dark:bg-sky-900" : (((storyStages[order.id] || "Pending") === "Pending" && (printablesStatuses[order.id] || "Pending") === "Pending" && ((fulfillmentStatuses[order.id] || "New Order") === "New Order")) ? "bg-gray-100 dark:bg-gray-700" : "")))} min-w-0`}
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
                         <div className="col-span-9 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 overflow-hidden">
@@ -2085,7 +2103,7 @@ const OrdersPage = () => {
                         <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
                           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
                           <select
-                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}
+                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getPrintablesStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}
                             value={printablesStatuses[order.id] || "Pending"}
                             onChange={(e) => handlePrintablesStatusChange(order.id, e.target.value)}
                           >
@@ -2533,7 +2551,7 @@ const OrdersPage = () => {
                     <div>
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
                       <select
-                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(printablesStatuses[selectedOrder.id] || "Pending")}`}
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getPrintablesStatusSelectClassName(printablesStatuses[selectedOrder.id] || "Pending")}`}
                         value={printablesStatuses[selectedOrder.id] || "Pending"}
                         onChange={(e) => handlePrintablesStatusChange(selectedOrder.id, e.target.value)}
                       >
