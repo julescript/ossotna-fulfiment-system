@@ -21,7 +21,6 @@ import {
   processAndUploadImagesAPI,
   downloadImagesAsZipAPI,
   saveMetafieldAPI,
-  saveStatusAPI,
   markOrderReadyForDeliveryAPI,
 } from "../services/orderService";
 import TwoFramesPreview, { OnePDFWithTwoFramesRef } from "@/components/CardsPreview";
@@ -82,20 +81,56 @@ const OrdersPage = () => {
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
   const [isFulfilling, setIsFulfilling] = useState(false);
 
-  // 1) Add storyStatuses state & statusOptions array
-  const [storyStatuses, setStoryStatuses] = useState({});
-  const statusOptions = [
-    "New Order",
-    "Waiting Story",
-    "Story Draft",
-    "Story Live",
-    "Story Approved",
-    "Printables Ready",
-    "Sent for Printing",
-    "Packaging",
-    "QA Review",
-    "Ready for Delivery",
-  ];
+  // Statuses (new)
+  const [storyStages, setStoryStages] = useState({});
+  const [printablesStatuses, setPrintablesStatuses] = useState({});
+  const [fulfillmentStatuses, setFulfillmentStatuses] = useState({});
+
+  const printablesStatusOptions = ["Pending", "Review", "Printing", "Ready"];
+  const storyStageOptions = ["Pending", "Waiting", "Review", "Live"];
+  const fulfillmentStatusOptions = ["New Order", "Ready For Delivery", "Sent For Delivery"];
+
+  const getMetafieldValue = (order, key) => {
+    return order.metafields?.find((mf) => mf.namespace === "custom" && mf.key === key)?.value;
+  };
+
+  const mapLegacyStatusToNew = (legacyStatus) => {
+    const legacy = (legacyStatus || "").trim();
+
+    // Fulfillment
+    const fulfillment = legacy === "Ready for Delivery" ? "Ready For Delivery" : "New Order";
+
+    // Story
+    let story = "Pending";
+    if (legacy === "Waiting Story") story = "Waiting";
+    if (legacy === "Story Draft") story = "Review";
+    if (legacy === "QA Review") story = "Review";
+    if (["Story Live", "Story Approved", "Printables Ready", "Sent for Printing", "Packaging", "Ready for Delivery"].includes(legacy)) {
+      story = "Live";
+    }
+
+    // Printables
+    let printables = "Pending";
+    if (legacy === "Printables Ready") printables = "Ready";
+    if (legacy === "Sent for Printing") printables = "Printing";
+    if (["Packaging", "QA Review", "Ready for Delivery"].includes(legacy)) printables = "Ready";
+
+    return { story, printables, fulfillment };
+  };
+
+  const getStatusSelectClassName = (value) => {
+    const v = (value || "").toString().toLowerCase();
+
+    if (v.includes("draft") || v.includes("review")) {
+      return "border-yellow-500 text-yellow-200 dark:bg-yellow-900";
+    }
+
+    if (v.includes("ready") || v.includes("live")) {
+      return "border-green-500 text-green-200 dark:bg-green-900";
+    }
+
+    return "border-gray-500 text-gray-200 dark:bg-gray-700";
+  };
 
   const subdomainValue = (order) => {
     return subdomains[order.id] || "";
@@ -264,24 +299,53 @@ const OrdersPage = () => {
     // in the orders’ content (even if length stays the same) will trigger this effect.
     // (Note: For production code, consider using a deep comparison hook instead.)
     console.log("orders", orders)
-    // Update story statuses if the value has changed for an order.
-    setStoryStatuses(prev => {
+    // Initialize new statuses from new metafields; if missing, map from legacy `custom.story-status`.
+    setFulfillmentStatuses((prev) => {
       let updated = false;
-      const newStatuses = { ...prev };
-      orders.forEach(order => {
-        // Only update if metafields exist for this order.
-        if (order.metafields && order.metafields.length > 0) {
-          const storyStatusMetafield = order.metafields.find(
-            mf => mf.namespace === "custom" && mf.key === "story-status"
-          );
-          const newStatus = storyStatusMetafield?.value || "New Order";
-          if (newStatuses[order.id] !== newStatus) {
-            newStatuses[order.id] = newStatus;
-            updated = true;
-          }
+      const next = { ...prev };
+      orders.forEach((order) => {
+        const explicit = getMetafieldValue(order, "fulfillment-status");
+        const legacy = getMetafieldValue(order, "story-status");
+        const mapped = mapLegacyStatusToNew(legacy);
+        const value = explicit || mapped.fulfillment;
+        if (next[order.id] !== value) {
+          next[order.id] = value;
+          updated = true;
         }
       });
-      return updated ? newStatuses : prev;
+      return updated ? next : prev;
+    });
+
+    setStoryStages((prev) => {
+      let updated = false;
+      const next = { ...prev };
+      orders.forEach((order) => {
+        const explicit = getMetafieldValue(order, "story-stage");
+        const legacy = getMetafieldValue(order, "story-status");
+        const mapped = mapLegacyStatusToNew(legacy);
+        const value = explicit || mapped.story;
+        if (next[order.id] !== value) {
+          next[order.id] = value;
+          updated = true;
+        }
+      });
+      return updated ? next : prev;
+    });
+
+    setPrintablesStatuses((prev) => {
+      let updated = false;
+      const next = { ...prev };
+      orders.forEach((order) => {
+        const explicit = getMetafieldValue(order, "printables-status");
+        const legacy = getMetafieldValue(order, "story-status");
+        const mapped = mapLegacyStatusToNew(legacy);
+        const value = explicit || mapped.printables;
+        if (next[order.id] !== value) {
+          next[order.id] = value;
+          updated = true;
+        }
+      });
+      return updated ? next : prev;
     });
 
     // Update subdomains.
@@ -1069,17 +1133,36 @@ const OrdersPage = () => {
     setLimit(newLimit > 250 ? 250 : newLimit); // Shopify max limit is 250
   };
 
-  // 3) Handler to update the "story-status" metafield
-  const handleStoryStatusChange = async (orderId, newStatus) => {
-    // Update local state so the dropdown value changes immediately
-    setStoryStatuses((prev) => ({ ...prev, [orderId]: newStatus }));
+  const handleFulfillmentStatusChange = async (orderId, newStatus) => {
+    setFulfillmentStatuses((prev) => ({ ...prev, [orderId]: newStatus }));
     try {
-      // Save to Shopify Metafield
-      await saveStatusAPI(orderId, newStatus)
+      await saveMetafieldAPI(orderId, "fulfillment-status", "single_line_text_field", newStatus);
+      toast.success("Fulfillment status updated successfully!", { autoClose: 2000 });
+    } catch (error) {
+      console.error("Error updating fulfillment status:", error);
+      toast.error("Failed to update fulfillment status!", { autoClose: 2000 });
+    }
+  };
+
+  const handleStoryStageChange = async (orderId, newStatus) => {
+    setStoryStages((prev) => ({ ...prev, [orderId]: newStatus }));
+    try {
+      await saveMetafieldAPI(orderId, "story-stage", "single_line_text_field", newStatus);
       toast.success("Story status updated successfully!", { autoClose: 2000 });
     } catch (error) {
       console.error("Error updating story status:", error);
       toast.error("Failed to update story status!", { autoClose: 2000 });
+    }
+  };
+
+  const handlePrintablesStatusChange = async (orderId, newStatus) => {
+    setPrintablesStatuses((prev) => ({ ...prev, [orderId]: newStatus }));
+    try {
+      await saveMetafieldAPI(orderId, "printables-status", "single_line_text_field", newStatus);
+      toast.success("Printables status updated successfully!", { autoClose: 2000 });
+    } catch (error) {
+      console.error("Error updating printables status:", error);
+      toast.error("Failed to update printables status!", { autoClose: 2000 });
     }
   };
 
@@ -1577,12 +1660,12 @@ const OrdersPage = () => {
           setScanStatus("loading");
 
           // Only update the metafield status without creating a fulfillment
-          saveStatusAPI(order.id, "Ready for Delivery")
+          saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Ready For Delivery")
             .then(() => {
               // Update local state
-              setStoryStatuses(prev => ({
+              setFulfillmentStatuses((prev) => ({
                 ...prev,
-                [order.id]: "Ready for Delivery"
+                [order.id]: "Ready For Delivery",
               }));
 
               // Show success state
@@ -1795,13 +1878,15 @@ const OrdersPage = () => {
             <div className="w-full h-full">
               <div className="h-full w-full bg-gray-800 shadow-md rounded-md overflow-hidden border border-gray-600 table-fixed">
                 {/* Table Header */}
-                <div className="grid grid-cols-12 bg-gray-600 text-white font-bold border-b border-gray-500">
+                <div className="grid grid-cols-12 md:grid-cols-[repeat(14,minmax(0,1fr))] bg-gray-600 text-white font-bold border-b border-gray-500">
                   <div className="col-span-9 md:col-span-2 p-4 md:p-4 p-2 truncate min-w-0">Order</div>
 
                   {/* Hide on Mobile */}
                   <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Subdomain</div>
-                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Story Status</div>
-                  <div className="col-span-0 md:col-span-4 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Product Properties</div>
+                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Story</div>
+                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Printables</div>
+                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Fulfillment</div>
+                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Product Properties</div>
 
                   <div className="col-span-3 md:col-span-2 p-4 md:p-4 p-2 text-center truncate min-w-0">Actions</div>
                 </div>
@@ -1817,7 +1902,7 @@ const OrdersPage = () => {
                     return (
                       <div
                         key={order.id}
-                        className={`grid grid-cols-12 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery" ? "bg-green-900 dark:hover:bg-green-800" : (storyStatuses[order.id] === "New Order" ? "dark:bg-gray-600" : (storyStatuses[order.id] === "Waiting Story" ? "dark:bg-[rgba(255,20,0,0.2)]" : ""))} min-w-0`}
+                        className={`grid grid-cols-12 md:grid-cols-[repeat(14,minmax(0,1fr))] border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${storyStages[order.id] === "Waiting" ? "bg-red-900" : (fulfillmentStatuses[order.id] === "Ready For Delivery" ? "bg-green-900" : (fulfillmentStatuses[order.id] === "Sent For Delivery" ? "bg-sky-200 dark:bg-sky-900" : ""))} min-w-0`}
                       >
                         {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
                         <div className="col-span-9 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 overflow-hidden">
@@ -1980,22 +2065,15 @@ const OrdersPage = () => {
                           </div>
                         </div>
 
-                        {/* Column 3: Story Status - Hidden on mobile */}
+                        {/* Column 3: Story - Hidden on mobile */}
                         <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
-                          <label
-                            className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
-                          >
-                            Story Status
-                          </label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
                           <select
-                            className={`w-full p-2 border rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[order.id] === "Ready for Delivery"
-                              ? "border-green-500 text-green-500 dark:bg-green-900"
-                              : "border-gray-300"
-                              }`}
-                            value={storyStatuses[order.id] || "New Order"}
-                            onChange={(e) => handleStoryStatusChange(order.id, e.target.value)}
+                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(storyStages[order.id] || "Pending")}`}
+                            value={storyStages[order.id] || "Pending"}
+                            onChange={(e) => handleStoryStageChange(order.id, e.target.value)}
                           >
-                            {statusOptions.map((status) => (
+                            {storyStageOptions.map((status) => (
                               <option key={status} value={status}>
                                 {status}
                               </option>
@@ -2003,8 +2081,40 @@ const OrdersPage = () => {
                           </select>
                         </div>
 
-                        {/* Column 4: Product Properties - Hidden on mobile */}
-                        <div className="col-span-0 md:col-span-4 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                        {/* Column 4: Printables - Hidden on mobile */}
+                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
+                          <select
+                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}
+                            value={printablesStatuses[order.id] || "Pending"}
+                            onChange={(e) => handlePrintablesStatusChange(order.id, e.target.value)}
+                          >
+                            {printablesStatusOptions.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Column 5: Fulfillment - Hidden on mobile */}
+                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
+                          <select
+                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(fulfillmentStatuses[order.id] || "New Order")}`}
+                            value={fulfillmentStatuses[order.id] || "New Order"}
+                            onChange={(e) => handleFulfillmentStatusChange(order.id, e.target.value)}
+                          >
+                            {fulfillmentStatusOptions.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Column 6: Product Properties - Hidden on mobile */}
+                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
                           {/* Display story-type label first */}
                           {(() => {
                             const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "Standard";
@@ -2402,27 +2512,54 @@ const OrdersPage = () => {
                   </div>
                 </div>
 
-                {/* Story Status - Move below on mobile */}
-                <div className={`col-span-3 text-gray-800 dark:text-gray-300 mt-2 md:mt-0 ${isMobile() ? "w-full" : "w-auto"}`}>
-                  <label
-                    className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
-                  >
-                    Story Status
-                  </label>
-                  <select
-                    className={`w-full p-2 border rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${storyStatuses[selectedOrder.id] === "Ready for Delivery"
-                      ? "border-green-500 text-green-500 dark:bg-green-900"
-                      : "border-gray-300"
-                      }`}
-                    value={storyStatuses[selectedOrder.id] || "New Order"}
-                    onChange={(e) => handleStoryStatusChange(selectedOrder.id, e.target.value)}
-                  >
-                    {statusOptions.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
+                {/* Statuses */}
+                <div className={`text-gray-800 dark:text-gray-300 mt-2 md:mt-0 ${isMobile() ? "w-full" : "w-auto"}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
+                      <select
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(storyStages[selectedOrder.id] || "Pending")}`}
+                        value={storyStages[selectedOrder.id] || "Pending"}
+                        onChange={(e) => handleStoryStageChange(selectedOrder.id, e.target.value)}
+                      >
+                        {storyStageOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
+                      <select
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(printablesStatuses[selectedOrder.id] || "Pending")}`}
+                        value={printablesStatuses[selectedOrder.id] || "Pending"}
+                        onChange={(e) => handlePrintablesStatusChange(selectedOrder.id, e.target.value)}
+                      >
+                        {printablesStatusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
+                      <select
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(fulfillmentStatuses[selectedOrder.id] || "New Order")}`}
+                        value={fulfillmentStatuses[selectedOrder.id] || "New Order"}
+                        onChange={(e) => handleFulfillmentStatusChange(selectedOrder.id, e.target.value)}
+                      >
+                        {fulfillmentStatusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <button
@@ -3587,17 +3724,17 @@ const OrdersPage = () => {
                     onClick={() => {
                       // Update order status and close modal
                       if (selectedOrder && selectedOrder.id) {
-                        saveStatusAPI(selectedOrder.id, "QA Review")
+                        Promise.all([
+                          saveMetafieldAPI(selectedOrder.id, "story-stage", "single_line_text_field", "Live"),
+                          saveMetafieldAPI(selectedOrder.id, "printables-status", "single_line_text_field", "Ready"),
+                        ])
                           .then(() => {
-                            // Update local state
-                            setStoryStatuses(prev => ({
-                              ...prev,
-                              [selectedOrder.id]: "QA Review"
-                            }));
-                            console.log("Order status updated to QA Review");
+                            setStoryStages((prev) => ({ ...prev, [selectedOrder.id]: "Live" }));
+                            setPrintablesStatuses((prev) => ({ ...prev, [selectedOrder.id]: "Ready" }));
+                            console.log("Order statuses updated after NFC write");
                           })
-                          .catch(err => {
-                            console.error("Failed to update order status:", err);
+                          .catch((err) => {
+                            console.error("Failed to update order statuses:", err);
                           });
                       }
                       // Reset all states
@@ -3638,140 +3775,62 @@ const OrdersPage = () => {
                           console.log("URL format corrected to:", urlToWrite);
                         }
 
-                        // Set up a scan listener to detect when a tag is in range
-                        ndef.addEventListener('reading', ({ message, serialNumber }) => {
-                          console.log(`> Serial Number: ${serialNumber}`);
-                          console.log(`> Records: (${message.records.length})`);
-                          console.log(`> Writing URL: ${urlToWrite}`);
+                        // Start scanning for NFC tags, then write once a tag is detected
+                        ndef.scan().then(() => {
+                          console.log("NFC scan started. Bring a tag close to write.");
 
-                          // Write only the URL to the tag
-                          ndef.write({
-                            records: [{ recordType: "url", data: urlToWrite }]
-                          }).then(() => {
-                            toast.success("URL written to NFC tag! Verifying...");
+                          ndef.addEventListener('reading', ({ message, serialNumber }) => {
+                            console.log(`> Serial Number: ${serialNumber}`);
+                            console.log(`> Records: (${message.records.length})`);
+                            console.log(`> Writing URL: ${urlToWrite}`);
 
-                            // After writing, switch to verification mode
-                            setIsNfcWriting(false);
-                            setIsNfcVerifying(true);
+                            ndef
+                              .write({
+                                records: [{ recordType: "url", data: urlToWrite }],
+                              })
+                              .then(() => {
+                                toast.success("URL written to NFC tag! Verifying...");
+                                setIsNfcWriting(false);
+                                setIsNfcVerifying(true);
 
-                            // Try to read the tag to verify the content
-                            console.log("Starting NFC verification...");
-
-                            // Read the tag to verify
-                            ndef.scan().then(() => {
-                              console.log("Verification scan started. Please tap the tag again.");
-
-                              // Set a timeout for verification
-                              setTimeout(() => {
-                                if (isNfcVerifying && !verificationCompleted) {
-                                  setIsNfcVerifying(false);
-                                  setVerificationCompleted(true);
-                                  toast.error("Verification timed out. You can try writing again or proceed.");
-
-                                  // Keep modal open to allow retry
-                                  // Don't update order status automatically, wait for user to confirm
-                                }
-                              }, 30000);
-
-                            }).catch(error => {
-                              console.error("Error starting verification scan:", error);
-                              setIsNfcVerifying(false);
-                              setVerificationCompleted(true);
-                              setShowDoneButton(true); // Show done button even if verification fails
-                              toast.error("Could not verify the tag. You can try writing again or proceed.");
-
-                              // Don't close the modal, allow user to retry or proceed
-                              // Don't update order status automatically, wait for user to confirm
-                            });
-
-                            // Add a new reading event listener specifically for verification
-                            ndef.addEventListener('reading', ({ message, serialNumber }) => {
-                              // Only process if we're verifying and haven't completed verification yet
-                              if (isNfcVerifying && !verificationCompleted) {
-                                console.log(`Verification - Serial Number: ${serialNumber}`);
-                                console.log(`Verification - Records: (${message.records.length})`);
-
-                                let verificationPassed = false;
-
-                                // Check if any of the records match our URL
-                                for (const record of message.records) {
-                                  if (record.recordType === "url") {
-                                    const decoder = new TextDecoder();
-                                    const url = decoder.decode(record.data);
-                                    console.log(`Verification - Read URL: ${url}`);
-
-                                    // Store the last read URL for display
-                                    setLastReadUrl(url);
-                                    setShowDoneButton(true);
-
-                                    // Compare with the URL we tried to write
-                                    if (url === urlToWrite) {
-                                      console.log("Verification successful - URLs match!");
-                                      verificationPassed = true;
-                                      break;
-                                    } else {
-                                      console.log(`Verification failed - URLs don't match. Expected: ${urlToWrite}, Got: ${url}`);
-                                    }
-                                  }
-                                }
-
+                                // Verification scan
+                                return ndef.scan();
+                              })
+                              .then(() => {
+                                console.log("Verification scan started. Please tap the tag again.");
+                              })
+                              .catch((error) => {
+                                console.error("Error writing/verifying NFC tag:", error);
+                                setIsNfcWriting(false);
                                 setIsNfcVerifying(false);
-                                // Mark verification as completed to prevent multiple processing
                                 setVerificationCompleted(true);
+                                setShowDoneButton(true);
+                                toast.error("NFC write/verify failed. You can try again or proceed.");
+                              });
 
-                                if (verificationPassed) {
-                                  toast.success("Verification successful! Correct URL written to tag.");
-                                  // Keep modal open to show the Done button
-                                  // Don't update order status yet, wait for user to click Done
-                                } else {
-                                  // Increment attempt counter but keep modal open
-                                  setNfcWriteAttempts(prev => prev + 1);
-                                  toast.error(`Verification failed. The written URL may be different from what was intended.`);
-
-                                  // Keep modal open to allow retry or manual confirmation
-                                  // The user can now see what was written and decide to retry or proceed
-                                }
+                            // Timeout in case verification doesn't complete
+                            setTimeout(() => {
+                              if (isNfcVerifying && !verificationCompleted) {
+                                setIsNfcVerifying(false);
+                                setVerificationCompleted(true);
+                                setShowDoneButton(true);
+                                toast.error("Verification timed out. You can try writing again or proceed.");
                               }
-                            });
+                            }, 30000);
+                          }, { once: true });
 
-                            // Helper function to update order status
-                            function updateOrderStatus() {
-                              if (selectedOrder && selectedOrder.id) {
-                                saveStatusAPI(selectedOrder.id, "QA Review")
-                                  .then(() => {
-                                    // Update local state
-                                    setStoryStatuses(prev => ({
-                                      ...prev,
-                                      [selectedOrder.id]: "QA Review"
-                                    }));
-                                    console.log("Order status updated to QA Review");
-                                  })
-                                  .catch(err => {
-                                    console.error("Failed to update order status:", err);
-                                  });
-                              }
+                          // Add a timeout to cancel if no tag is found after 30 seconds
+                          setTimeout(() => {
+                            if (isNfcWriting) {
+                              setIsNfcWriting(false);
+                              toast.error("NFC operation timed out. Please try again.");
                             }
-                          }).catch((error) => {
-                            setIsNfcWriting(false);
-                            console.error(error);
-                            toast.error("Failed to write to NFC tag: " + error.message);
-                          });
-                        });
-
-                        // Start scanning for NFC tags
-                        ndef.scan().catch((error) => {
+                          }, 30000);
+                        }).catch((error) => {
                           setIsNfcWriting(false);
-                          console.error(error);
-                          toast.error("Error scanning for NFC tag: " + error.message);
+                          console.error("Error starting NFC scan:", error);
+                          toast.error("Error accessing NFC: " + (error?.message || "Unknown error"));
                         });
-
-                        // Add a timeout to cancel if no tag is found after 30 seconds
-                        setTimeout(() => {
-                          if (isNfcWriting) {
-                            setIsNfcWriting(false);
-                            toast.error("NFC operation timed out. Please try again.");
-                          }
-                        }, 30000);
 
                       } catch (error: any) {
                         setIsNfcWriting(false);

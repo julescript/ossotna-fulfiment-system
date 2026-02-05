@@ -4,7 +4,7 @@ import { fetchOrdersAPI } from "../services/orderService";
 
 export function useOrders() {
   const [orders, setOrders] = useState([]);
-  const [limit, setLimit] = useState(25); // default limit
+  const [limit, setLimit] = useState(100); // default limit
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchOrders = async (limitValue) => {
