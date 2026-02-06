@@ -1,0 +1,508 @@
+import React from "react";
+import { getDefaultSubdomain, getOrderURL } from "../utils/orderUtils";
+import { formatPhoneForWhatsApp, getWhatsAppUrl } from "../utils/whatsapp";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+export interface OrdersTableProps {
+  orders: any[];
+  isLoading: boolean;
+
+  // Per-order state maps
+  subdomains: Record<string, string>;
+  toggledRows: Record<string, boolean>;
+  loadingOrders: Record<string, boolean>;
+  storyStages: Record<string, string>;
+  printablesStatuses: Record<string, string>;
+  fulfillmentStatuses: Record<string, string>;
+  uploadProgress: Record<string, { current: number; total: number }>;
+  downloadProgress: Record<string, { current: number; total: number }>;
+
+  // Status options
+  storyStageOptions: string[];
+  printablesStatusOptions: string[];
+  fulfillmentStatusOptions: string[];
+
+  // Setters
+  setSubdomains: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+
+  // Handlers
+  handleOpenModal: (order: any) => void;
+  handleCopyProperties: (order: any) => void;
+  handleProcessAndUploadImages: (order: any) => void;
+  handleCopyStoryPhotosJSON: (order: any) => void;
+  handleCopyPasswordAndOpenSubdomain: (order: any) => void;
+  handleCopySubdomainAndOpenLocalhost: (order: any) => void;
+  handleOpenShopifyOrderPage: (order: any) => void;
+  handleOpenShopifyPrintPage: (order: any) => void;
+  handleSendPreviewLink: (order: any) => void;
+  handleSaveSubdomain: (orderId: string, subdomain: string) => void;
+  handleGenerateQRCode: (subdomain: string) => void;
+  handleStoryStageChange: (orderId: string, newStatus: string) => void;
+  handlePrintablesStatusChange: (orderId: string, newStatus: string) => void;
+  handleFulfillmentStatusChange: (orderId: string, newStatus: string) => void;
+
+  // For opening story tab directly from table
+  setSelectedOrder: (order: any) => void;
+  setActiveModalTab: (tab: string) => void;
+  setIsModalOpen: (open: boolean) => void;
+}
+
+// ── Helper functions ───────────────────────────────────────────────────────────
+
+const getPhoneNumber = (order: any): string => {
+  if (!order) return "";
+  if (order.phone) return order.phone;
+  if (order.shipping_address?.phone) return order.shipping_address.phone;
+  return "";
+};
+
+const getStatusSelectClassName = (value: string): string => {
+  const v = (value || "").toString().toLowerCase();
+  if (v.includes("draft") || v.includes("review")) {
+    return "border-yellow-500 text-yellow-200 dark:bg-yellow-900";
+  }
+  if (v.includes("ready") || v.includes("live")) {
+    return "border-green-500 text-green-200 dark:bg-green-900";
+  }
+  return "border-gray-500 text-gray-200 dark:bg-gray-700";
+};
+
+const getPrintablesStatusSelectClassName = (value: string): string => {
+  const v = (value || "").toString().toLowerCase();
+  if (v.includes("draft") || v.includes("review")) {
+    return "border-yellow-500 text-yellow-200 dark:bg-yellow-900";
+  }
+  if (v.includes("printing")) {
+    return "border-green-500 text-green-200 dark:bg-green-900";
+  }
+  if (v === "ready" || v.includes("ready")) {
+    return "border-sky-500 text-sky-200 dark:bg-sky-900";
+  }
+  return "border-gray-500 text-gray-200 dark:bg-gray-700";
+};
+
+const getRowBackgroundClass = (
+  order: any,
+  storyStages: Record<string, string>,
+  printablesStatuses: Record<string, string>,
+  fulfillmentStatuses: Record<string, string>
+): string => {
+  const story = storyStages[order.id] || "Pending";
+  const printables = printablesStatuses[order.id] || "Pending";
+  const fulfillment = fulfillmentStatuses[order.id] || "New Order";
+
+  if (story === "Waiting") return "bg-red-900";
+  if (fulfillment === "Ready For Delivery") return "bg-green-900";
+  if (fulfillment === "Sent For Delivery") return "bg-sky-200 dark:bg-sky-900";
+  if (story === "Pending" && printables === "Pending" && fulfillment === "New Order")
+    return "bg-gray-100 dark:bg-gray-700";
+  return "";
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
+const OrdersTable: React.FC<OrdersTableProps> = ({
+  orders,
+  isLoading,
+  subdomains,
+  toggledRows,
+  loadingOrders,
+  storyStages,
+  printablesStatuses,
+  fulfillmentStatuses,
+  uploadProgress,
+  downloadProgress,
+  storyStageOptions,
+  printablesStatusOptions,
+  fulfillmentStatusOptions,
+  setSubdomains,
+  handleOpenModal,
+  handleCopyProperties,
+  handleProcessAndUploadImages,
+  handleCopyStoryPhotosJSON,
+  handleCopyPasswordAndOpenSubdomain,
+  handleCopySubdomainAndOpenLocalhost,
+  handleOpenShopifyOrderPage,
+  handleOpenShopifyPrintPage,
+  handleSendPreviewLink,
+  handleSaveSubdomain,
+  handleGenerateQRCode,
+  handleStoryStageChange,
+  handlePrintablesStatusChange,
+  handleFulfillmentStatusChange,
+  setSelectedOrder,
+  setActiveModalTab,
+  setIsModalOpen,
+}) => {
+  const GRID_COLS = "grid-cols-[1fr] md:grid-cols-[1.2fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr_3fr_0.8fr]";
+
+  return (
+    <div className={`h-full w-full md:pb-0 pb-44 ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
+      <div className="h-full w-full bg-gray-900 flex items-center justify-center">
+        <div className="w-full h-full">
+          <div className="h-full w-full bg-gray-800 shadow-md rounded-md overflow-hidden border border-gray-600 table-fixed">
+            {/* Table Header */}
+            <div className={`grid ${GRID_COLS} bg-gray-600 text-white font-bold border-b border-gray-500 text-sm`}>
+              <div className="px-3 py-2 md:block">Order</div>
+              <div className="px-3 py-2 hidden md:block">Customer</div>
+              <div className="px-3 py-2 hidden md:block">Properties</div>
+              <div className="px-3 py-2 hidden md:block">Subdomain</div>
+              <div className="px-3 py-2 hidden md:block">Story</div>
+              <div className="px-3 py-2 hidden md:block">Printables</div>
+              <div className="px-3 py-2 hidden md:block">Fulfillment</div>
+              <div className="px-3 py-2 hidden md:block text-center">Actions</div>
+              <div className="px-3 py-2 hidden md:block text-center"></div>
+            </div>
+
+            {/* Table Body */}
+            <div className="overflow-y-auto h-[calc(100%-3rem)]">
+              {orders.map((order) => {
+                const subdomainValue = subdomains[order.id] || "";
+                const storyType = order.line_items[0].properties.find(
+                  (prop: any) => prop.name === "story"
+                );
+
+                return (
+                  <div
+                    key={order.id}
+                    className={`grid ${GRID_COLS} border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${getRowBackgroundClass(order, storyStages, printablesStatuses, fulfillmentStatuses)} min-w-0 md:cursor-default cursor-pointer`}
+                    onClick={() => { if (window.innerWidth < 768) handleOpenModal(order); }}
+                  >
+                    {/* Column 0: Order Number + Customer (mobile) + Print/Shopify (desktop) */}
+                    <div className="px-3 py-2 flex flex-col items-start">
+                      <span className="text-2xl font-bold text-white font-mono">{order.name}</span>
+                      {/* Mobile: show customer name, phone, story type */}
+                      <div className="md:hidden flex flex-col gap-0.5 mt-1">
+                        <span className="text-sm text-gray-300 font-medium">{order?.shipping_address?.first_name} {order?.shipping_address?.last_name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">{getPhoneNumber(order) || "No phone"}</span>
+                          {order?.shipping_address?.city && <span className="text-xs text-gray-500">• {order.shipping_address.city}</span>}
+                        </div>
+                        <div className="flex items-center gap-1 mt-0.5">
+                          {(() => {
+                            const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
+                            let bgColor = "bg-gray-600";
+                            if (st.toLowerCase() === "mother") bgColor = "bg-purple-600";
+                            else if (st.toLowerCase() === "love") bgColor = "bg-red-600";
+                            else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-800";
+                            return <span className={`inline-block px-1.5 py-0.5 ${bgColor} rounded text-white text-[10px] font-bold`}>{st.toUpperCase()}</span>;
+                          })()}
+                          <span className="text-[10px] text-gray-400 italic">{order.line_items[0].variant_title}</span>
+                        </div>
+                      </div>
+                      <div className="hidden md:flex gap-1 mt-1.5">
+                        <button
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition text-xs font-medium"
+                          onClick={(e) => { e.stopPropagation(); handleOpenShopifyOrderPage(order); }}
+                          title="Open Shopify Order Page"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">shoppingmode</span>
+                          Shopify
+                        </button>
+                        <button
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition text-xs font-medium"
+                          onClick={(e) => { e.stopPropagation(); handleOpenShopifyPrintPage(order); }}
+                          title="Print Shopify Order"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">print</span>
+                          Print
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Column 1: Customer Info */}
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 overflow-hidden hidden md:block">
+                      {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
+                      <br />
+                      {order?.shipping_address?.city && (
+                        <>
+                          {order.shipping_address.city}
+                          <br />
+                        </>
+                      )}
+                      <a
+                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 underline"
+                      >
+                        {getPhoneNumber(order) || "N/A"}
+                      </a>
+
+                      {/* WhatsApp Quick Actions */}
+                      <div className="flex gap-1 mt-1">
+                        <a
+                          href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), `Hello ${order?.shipping_address?.first_name}`)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          title="Quick Hello"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">waving_hand</span>
+                        </a>
+                        <a
+                          href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          title="Thank You Message"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">volunteer_activism</span>
+                        </a>
+                        {order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-url") && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleSendPreviewLink(order); }}
+                            className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                            title="Send Preview Link"
+                          >
+                            <span className="material-symbols-outlined text-[20px]">Draft</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Column 2: Product Properties */}
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                      <div className="flex items-center gap-1 mb-1 flex-wrap">
+                        {(() => {
+                          const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
+                          let bgColor = "bg-gray-600";
+                          if (st.toLowerCase() === "mother") bgColor = "bg-purple-600";
+                          else if (st.toLowerCase() === "love") bgColor = "bg-red-600";
+                          else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-800";
+                          return (
+                            <span className={`inline-block px-2 py-0.5 ${bgColor} rounded text-white text-xs font-bold`}>
+                              {st.toUpperCase()}
+                            </span>
+                          );
+                        })()}
+                        {storyType?.value && (
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase ${storyType.value.toLowerCase() === "self" ? "bg-green-600 text-white" : storyType.value.toLowerCase() === "help" ? "bg-yellow-500 text-white" : "bg-gray-500 text-white"}`}>
+                            {storyType.value}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm"><i>{order.line_items[0].variant_title}</i></div>
+                      {toggledRows[order.id] ? (
+                        order.line_items[0].properties.map((prop: any) => (
+                          <div key={prop.name} className="text-xs mt-1">
+                            <b>{prop.name}:</b>{" "}
+                            {/^https?:\/\/\S+/.test(prop.value) ? (
+                              <a href={prop.value} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline break-all">{prop.value}</a>
+                            ) : (
+                              <span className="text-gray-400">{prop.value}</span>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <>
+                          {order.line_items[0].properties
+                            .filter((p: any) => ["title", "dedication_line"].includes(p.name))
+                            .map((prop: any) => (
+                              <div key={prop.name} className="text-xs text-gray-400 mt-0.5">
+                                {prop.value}
+                              </div>
+                            ))}
+                        </>
+                      )}
+                      <div className="text-xs font-semibold mt-1">
+                        {getOrderURL(order) ? `${getOrderURL(order)}.ossotna.com` : "Auto Generated"}
+                      </div>
+                    </div>
+
+                    {/* Column 3: Subdomain Input & Actions */}
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                      <label
+                        htmlFor={`subdomain-${order.id}`}
+                        className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
+                      >
+                        Subdomain URL
+                      </label>
+                      <input
+                        type="text"
+                        id={`subdomain-${order.id}`}
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${
+                          subdomainValue === getDefaultSubdomain(order)
+                            ? "border-gray-500"
+                            : "border-blue-500"
+                        }`}
+                        value={subdomainValue}
+                        onChange={(e) =>
+                          setSubdomains((prev) => ({
+                            ...prev,
+                            [order.id]: e.target.value,
+                          }))
+                        }
+                      />
+
+                      {/* Subdomain Buttons */}
+                      <div className="flex items-start justify-start gap-1 mt-1">
+                        <button
+                          className={`flex items-center justify-center w-9 h-9 rounded transition ${subdomainValue === getDefaultSubdomain(order) ? "bg-gray-600 text-gray-500 cursor-not-allowed opacity-50" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
+                          onClick={() => handleSaveSubdomain(order.id, subdomainValue)}
+                          disabled={subdomainValue === getDefaultSubdomain(order)}
+                          title="Save Subdomain"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">save</span>
+                        </button>
+                        <button
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          onClick={() => {
+                            const customURL = getOrderURL(order);
+                            const randomDigits = Math.floor(10000 + Math.random() * 90000);
+                            const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "";
+                            const prefix = st.toLowerCase() === "mother" ? "mom-" : "book-";
+                            const fallback = `${prefix}${randomDigits}`;
+                            setSubdomains((prev) => ({ ...prev, [order.id]: customURL || fallback }));
+                          }}
+                          title="Auto-Fill Subdomain"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">auto_fix_high</span>
+                        </button>
+                        <button
+                          className={`flex items-center justify-center w-9 h-9 rounded transition ${subdomainValue ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-600 text-gray-500 cursor-not-allowed opacity-50"}`}
+                          onClick={() => handleGenerateQRCode(subdomainValue)}
+                          disabled={!subdomainValue}
+                          title="Generate QR Code"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">qr_code</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Column 4: Story */}
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
+                      <select
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(storyStages[order.id] || "Pending")}`}
+                        value={storyStages[order.id] || "Pending"}
+                        onChange={(e) => handleStoryStageChange(order.id, e.target.value)}
+                      >
+                        {storyStageOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Column 5: Printables */}
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
+                      <select
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getPrintablesStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}
+                        value={printablesStatuses[order.id] || "Pending"}
+                        onChange={(e) => handlePrintablesStatusChange(order.id, e.target.value)}
+                      >
+                        {printablesStatusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Column 6: Fulfillment */}
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
+                      <select
+                        className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(fulfillmentStatuses[order.id] || "New Order")}`}
+                        value={fulfillmentStatuses[order.id] || "New Order"}
+                        onChange={(e) => handleFulfillmentStatusChange(order.id, e.target.value)}
+                      >
+                        {fulfillmentStatusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Column 7: Action Buttons */}
+                    <div className="hidden md:flex flex-col items-end justify-center gap-1 px-2 py-2">
+                      {/* Row 1: Story, Upload, Copy URLs */}
+                      <div className="flex gap-1">
+                        <button
+                          className="flex items-center justify-center w-9 h-9 rounded bg-purple-700 hover:bg-purple-600 text-white transition"
+                          onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); setSelectedOrder(order); setActiveModalTab("story"); setIsModalOpen(true); }}
+                          title="Generate Story"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">auto_stories</span>
+                        </button>
+                        <button
+                          className={`flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[order.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`}
+                          onClick={(e) => { e.stopPropagation(); handleProcessAndUploadImages(order); }}
+                          disabled={loadingOrders[order.id]}
+                          title="Process & Upload Images"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">{loadingOrders[order.id] ? "arrow_upload_progress" : "cloud_upload"}</span>
+                        </button>
+                        <button
+                          className={`flex items-center justify-center w-9 h-9 rounded transition ${order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-photos") ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-700 text-gray-500 opacity-50"}`}
+                          onClick={(e) => { e.stopPropagation(); handleCopyStoryPhotosJSON(order); }}
+                          disabled={!order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-photos")}
+                          title="Copy Images JSON"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">photo_library</span>
+                        </button>
+                      </div>
+                      {/* Row 2: Copy Props, Open Story, Open Story Localhost */}
+                      <div className="flex gap-1">
+                        <button
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); }}
+                          title="Copy Properties"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                        </button>
+                        <button
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          onClick={(e) => { e.stopPropagation(); handleCopyPasswordAndOpenSubdomain(order); }}
+                          title="Open Story"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">language</span>
+                        </button>
+                        <button
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          onClick={(e) => { e.stopPropagation(); handleCopySubdomainAndOpenLocalhost(order); }}
+                          title="Open Story Localhost"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">dns</span>
+                        </button>
+                      </div>
+                      {/* Progress Indicators */}
+                      {downloadProgress[order.id] && (
+                        <div className="text-xs text-gray-300">
+                          DL {downloadProgress[order.id].current}/{downloadProgress[order.id].total}
+                        </div>
+                      )}
+                      {uploadProgress[order.id] && (
+                        <div className="text-xs text-gray-300">
+                          UL {uploadProgress[order.id].current}/{uploadProgress[order.id].total}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Column 8: Order Detail Button (desktop only) */}
+                    <div className="px-2 py-2 hidden md:flex items-center justify-center">
+                      <button
+                        className="flex items-center justify-center w-12 h-12 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition"
+                        onClick={(e) => { e.stopPropagation(); handleOpenModal(order); }}
+                        title="Open Order Details"
+                      >
+                        <span className="material-symbols-outlined text-[28px]">aspect_ratio</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default OrdersTable;

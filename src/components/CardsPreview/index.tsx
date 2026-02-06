@@ -424,53 +424,53 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
   // PDF generation is manual — click the Generate button
 
   return (
-    <div className="p-4 w-full display-flex justify-center align-center">
-      {/* PDF Preview using react-pdf */}
-      <div className="relative w-full" style={{ aspectRatio: '1.26/1', display: "flex", justifyContent: "center", alignItems: "center" }}>
+    <div className="w-full flex flex-col items-center">
+      {/* PDF Preview - fills container width */}
+      <div className="relative w-full flex justify-center items-center" style={{ minHeight: '300px' }}>
         {pdfData ? (
           <Document 
             file={pdfData}
             onLoadSuccess={(pdf) => console.log("PDF loaded successfully:", pdf)}
             onLoadError={(err) => console.error("Error loading PDF:", err)}
           >
-            <Page pageNumber={1} style={{ width: '100%' }}  scale={1.2} />
+            <Page pageNumber={1} width={420} />
           </Document>
         ) : (
-          <p className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            {isLoading ? "Generating PDF..." : "No PDF data"}
-          </p>
+          <div
+            className={`w-full min-h-[300px] rounded-lg border-2 border-dashed border-gray-600 flex flex-col items-center justify-center gap-3 bg-gray-900/30 ${!isLoading ? 'cursor-pointer hover:border-yellow-600 hover:bg-gray-900/50 transition-colors' : ''}`}
+            onClick={() => { if (!isLoading) generatePDF(); }}
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-yellow-500"></div>
+                <span className="text-sm text-gray-400">Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-[48px] text-gray-600">picture_as_pdf</span>
+                <span className="text-sm text-gray-500">Click to generate preview</span>
+              </>
+            )}
+          </div>
         )}
       </div>
-      <div className="flex gap-4 m-2">
-        <button
-          onClick={generatePDF}
-          className="w-1/4 px-2 py-2 bg-yellow-700 text-white hover:bg-yellow-900 disabled:opacity-50"
-          disabled={isLoading}
-        >
-          {isLoading ? "Generating..." : "Generate"}
-        </button>
 
-        <button
-          onClick={handleDownload}
-          className="w-1/4 px-2 py-2 bg-blue-700 text-white hover:bg-blue-900 disabled:opacity-50"
-          disabled={!downloadUrl}
-        >
+      {/* Action buttons - row below preview */}
+      <div className="flex gap-2 mt-3 w-full">
+        <button onClick={generatePDF} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-yellow-700 hover:bg-yellow-600 text-white text-sm font-medium disabled:opacity-50 transition" disabled={isLoading}>
+          <span className="material-symbols-outlined text-[18px]">refresh</span>
+          {isLoading ? "..." : "Generate"}
+        </button>
+        <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium disabled:opacity-50 transition" disabled={!downloadUrl}>
+          <span className="material-symbols-outlined text-[18px]">download</span>
           Download
         </button>
-
-        <button
-          onClick={handleSend}
-          className="w-1/4 px-2 py-2 bg-green-700 text-white hover:bg-green-900 disabled:opacity-50"
-          disabled={!pdfData}
-        >
+        <button onClick={handleSend} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-green-700 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 transition" disabled={!pdfData}>
+          <span className="material-symbols-outlined text-[18px]">send</span>
           Send
         </button>
-
-        <button
-          onClick={handlePrint}
-          className="w-1/4 px-2 py-2 bg-purple-700 text-white hover:bg-purple-900 disabled:opacity-50"
-          disabled={!downloadUrl}
-        >
+        <button onClick={handlePrint} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium disabled:opacity-50 transition" disabled={!downloadUrl}>
+          <span className="material-symbols-outlined text-[18px]">print</span>
           Print
         </button>
       </div>

@@ -3,6 +3,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import dynamic from 'next/dynamic'; // Import dynamic from Next.js
 import ImageUploadModal from '../components/ImageUploadModal';
+import OrdersTable from '../components/OrdersTable';
 import LogoutButton from '../components/LogoutButton';
 import VersionDisplay from '../components/VersionDisplay';
 // Dynamically import QR Scanner components
@@ -150,13 +151,25 @@ const OrdersPage = () => {
     return "border-gray-500 text-gray-200 dark:bg-gray-700";
   };
 
+  const getRowBackgroundClass = (order) => {
+    const story = storyStages[order.id] || "Pending";
+    const printables = printablesStatuses[order.id] || "Pending";
+    const fulfillment = fulfillmentStatuses[order.id] || "New Order";
+
+    if (story === "Waiting") return "bg-red-900";
+    if (fulfillment === "Ready For Delivery") return "bg-green-900";
+    if (fulfillment === "Sent For Delivery") return "bg-sky-200 dark:bg-sky-900";
+    if (story === "Pending" && printables === "Pending" && fulfillment === "New Order") return "bg-gray-100 dark:bg-gray-700";
+    return "";
+  };
+
   const subdomainValue = (order) => {
     return subdomains[order.id] || "";
   }
 
   const handleOpenModal = (order) => {
     setSelectedOrder(order);
-    setActiveModalTab("details");
+    setActiveModalTab(isMobile() ? "delivery" : "details");
     setIsModalOpen(true);
   };
 
@@ -1891,484 +1904,40 @@ const OrdersPage = () => {
           </span>
         </div>
 
-        {/* Main Table Container */}
-        <div className={`h-full w-full md:pb-0 pb-44 ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
-          <div className="h-full w-full bg-gray-900 flex items-center justify-center">
-            <div className="w-full h-full">
-              <div className="h-full w-full bg-gray-800 shadow-md rounded-md overflow-hidden border border-gray-600 table-fixed">
-                {/* Table Header */}
-                <div className="grid grid-cols-12 md:grid-cols-[repeat(14,minmax(0,1fr))] bg-gray-600 text-white font-bold border-b border-gray-500">
-                  <div className="col-span-9 md:col-span-2 p-4 md:p-4 p-2 truncate min-w-0">Order</div>
-
-                  {/* Hide on Mobile */}
-                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Subdomain</div>
-                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Story</div>
-                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Printables</div>
-                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Fulfillment</div>
-                  <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 hidden md:block truncate min-w-0">Product Properties</div>
-
-                  <div className="col-span-3 md:col-span-2 p-4 md:p-4 p-2 text-center truncate min-w-0">Actions</div>
-                </div>
-
-                {/* Table Body */}
-                <div className="overflow-y-auto h-[calc(100%-3rem)]">
-                  {orders.map((order) => {
-                    const subdomainValue = subdomains[order.id] || "";
-                    const storyType = order.line_items[0].properties.find(
-                      (prop) => prop.name === "story"
-                    );
-
-                    return (
-                      <div
-                        key={order.id}
-                        className={`grid grid-cols-12 md:grid-cols-[repeat(14,minmax(0,1fr))] border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${storyStages[order.id] === "Waiting" ? "bg-red-900" : (fulfillmentStatuses[order.id] === "Ready For Delivery" ? "bg-green-900" : (fulfillmentStatuses[order.id] === "Sent For Delivery" ? "bg-sky-200 dark:bg-sky-900" : (((storyStages[order.id] || "Pending") === "Pending" && (printablesStatuses[order.id] || "Pending") === "Pending" && ((fulfillmentStatuses[order.id] || "New Order") === "New Order")) ? "bg-gray-100 dark:bg-gray-700" : "")))} min-w-0`}
-                      >
-                        {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
-                        <div className="col-span-9 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 overflow-hidden">
-                          <b>{order.name}</b> <span className={
-                            storyType?.value === "later"
-                              ? "text-red-500"
-                              : storyType?.value === "help"
-                                ? "text-yellow-500"
-                                : "text-yellow-500"
-                          }><span className="uppercase">{storyType?.value ? storyType.value : null}</span></span>
-                          <br />
-                          {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
-                          <br />
-                          {order?.shipping_address?.city && (
-                            <>
-                              {order.shipping_address.city}
-                              <br />
-                            </>
-                          )}
-                          {/* Show phone or "N/A" */}
-                          <a
-                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hidden md:inline-block text-blue-500 underline"
-                          >
-                            {getPhoneNumber(order) || "N/A"}
-                          </a>
-                          <a
-                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="md:hidden text-blue-500 underline"
-                          >
-                            {getPhoneNumber(order) || "N/A"}
-                          </a>
-                          <br />
-
-                          {/* 1) Quick Hello Button */}
-                          <a
-                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)),
-                              `Hello ${order?.shipping_address?.first_name}`
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
-                          >
-                            <span className="material-symbols-outlined">waving_hand</span>
-                          </a>
-
-                          {/* 2) Thank You / Intro Message Button */}
-                          <a
-                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)),
-                              `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
-                            )}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
-                          >
-                            <span className="material-symbols-outlined">volunteer_activism</span>
-                          </a>
-
-                          {/* 3) Draft Link Button (only if "story-url" metafield exists) */}
-                          {order.metafields?.some(
-                            (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                          ) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSendPreviewLink(order);
-                                }}
-                                className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
-                              >
-                                <span className="material-symbols-outlined">Draft</span>
-                              </button>
-                            )}
-                        </div>
-
-                        {/* Column 2: Subdomain Input & Actions */}
-                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
-                          <label
-                            htmlFor={`subdomain-${order.id}`}
-                            className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
-                          >
-                            Subdomain URL
-                          </label>
-                          <input
-                            type="text"
-                            id={`subdomain-${order.id}`}
-                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${subdomainValue === getDefaultSubdomain(order)
-                              ? "border-green-500 text-green-500"
-                              : "border-gray-300"
-                              }`}
-                            value={subdomainValue}
-                            onChange={(e) =>
-                              setSubdomains((prev) => ({
-                                ...prev,
-                                [order.id]: e.target.value,
-                              }))
-                            }
-                          />
-
-                          {/* Subdomain Buttons - Hidden on mobile */}
-                          <div className="flex items-start justify-start gap-2 mt-2">
-                            {/* Save Subdomain */}
-                            <button
-                              className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomainValue === getDefaultSubdomain(order)
-                                ? "bg-gray-500 cursor-not-allowed opacity-50"
-                                : "bg-blue-500 hover:bg-blue-600"
-                                }`}
-                              onClick={() =>
-                                handleSaveSubdomain(order.id, subdomainValue)
-                              }
-                              disabled={subdomainValue === getDefaultSubdomain(order)}
-                            >
-                              <span className="material-symbols-outlined">save</span>
-                            </button>
-
-                            {/* Auto-Fill Subdomain */}
-                            <button
-                              className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
-                              onClick={() => {
-                                const customURL = getOrderURL(order);
-                                const randomDigits = Math.floor(10000 + Math.random() * 90000);
-
-                                // Check if story type is mother
-                                const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "";
-                                let prefix = "book-";
-
-                                if (storyType.toLowerCase() === "mother") {
-                                  prefix = "mom-";
-                                }
-
-                                const fallback = `${prefix}${randomDigits}`;
-
-                                setSubdomains((prev) => ({
-                                  ...prev,
-                                  [order.id]: customURL || fallback,
-                                }));
-                              }}
-                            >
-                              <span className="material-symbols-outlined">
-                                auto_fix_high
-                              </span>
-                            </button>
-
-                            {/* Generate QR Code */}
-                            <button
-                              className={`text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 ${subdomainValue
-                                ? "bg-gray-700 hover:bg-gray-900"
-                                : "bg-gray-500 cursor-not-allowed opacity-50"
-                                }`}
-                              onClick={() => handleGenerateQRCode(subdomainValue)}
-                              disabled={!subdomainValue}
-                            >
-                              <span className="material-symbols-outlined">
-                                qr_code
-                              </span>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Column 3: Story - Hidden on mobile */}
-                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
-                          <select
-                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(storyStages[order.id] || "Pending")}`}
-                            value={storyStages[order.id] || "Pending"}
-                            onChange={(e) => handleStoryStageChange(order.id, e.target.value)}
-                          >
-                            {storyStageOptions.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Column 4: Printables - Hidden on mobile */}
-                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
-                          <select
-                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getPrintablesStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}
-                            value={printablesStatuses[order.id] || "Pending"}
-                            onChange={(e) => handlePrintablesStatusChange(order.id, e.target.value)}
-                          >
-                            {printablesStatusOptions.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Column 5: Fulfillment - Hidden on mobile */}
-                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
-                          <select
-                            className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(fulfillmentStatuses[order.id] || "New Order")}`}
-                            value={fulfillmentStatuses[order.id] || "New Order"}
-                            onChange={(e) => handleFulfillmentStatusChange(order.id, e.target.value)}
-                          >
-                            {fulfillmentStatusOptions.map((status) => (
-                              <option key={status} value={status}>
-                                {status}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Column 6: Product Properties - Hidden on mobile */}
-                        <div className="col-span-0 md:col-span-2 p-4 md:p-4 p-2 text-gray-800 dark:text-gray-300 hidden md:block">
-                          {/* Display story-type label first */}
-                          {(() => {
-                            const storyType = order.line_items[0].properties.find(p => p.name === "story-type")?.value || "Standard";
-                            let bgColor = "bg-gray-600";
-
-                            if (storyType.toLowerCase() === "mother") {
-                              bgColor = "bg-purple-600";
-                            } else if (storyType.toLowerCase() === "love") {
-                              bgColor = "bg-red-600";
-                            } else if (storyType.toLowerCase() === "friendship") {
-                              bgColor = "bg-blue-800";
-                            }
-
-                            return (
-                              <div className={`mt-2 mb-2 p-2 ${bgColor} rounded text-white font-bold`}>
-                                {storyType.toUpperCase()}
-                              </div>
-                            );
-                          })()}
-                          <i>{order.line_items[0].variant_title}</i>
-                          <br />
-                          {toggledRows[order.id] ? (
-                            order.line_items[0].properties.map((prop) => (
-                              <div key={prop.name}>
-                                <b>{prop.name}:</b>
-                                <br />
-                                {/^https?:\/\/\S+/.test(prop.value) ? (
-                                  <a
-                                    href={prop.value}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-500 underline"
-                                  >
-                                    {prop.value}
-                                  </a>
-                                ) : (
-                                  prop.value
-                                )}
-                                <hr className="mt-4 mb-4 opacity-25" />
-                              </div>
-                            ))
-                          ) : (
-                            <>
-                              {order.line_items[0].properties
-                                .filter((p) => ["title", "dedication_line"].includes(p.name))
-                                .map((prop) => (
-                                  <div key={prop.name}>
-                                    {/^https?:\/\/\S+/.test(prop.value) ? (
-                                      <a
-                                        href={prop.value}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-500 underline"
-                                      >
-                                        {prop.value}
-                                      </a>
-                                    ) : (
-                                      prop.value
-                                    )}
-                                  </div>
-                                ))}
-                            </>
-                          )}
-                          <b>
-                            {getOrderURL(order)
-                              ? `${getOrderURL(order)}.ossotna.com`
-                              : "Auto Generated"}
-                          </b>
-                        </div>
-
-                        {/* Column 5: Action Buttons */}
-                        <div className="col-span-3 md:col-span-2 p-4 md:p-4 p-2 text-center flex flex-col items-end justify-start gap-2">
-                          {/* Actions Container */}
-                          <div className="flex flex-wrap justify-center gap-2 md:flex-nowrap">
-                            {/* Copy Properties */}
-                            <button
-                              className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 hidden md:block"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyProperties(order);
-                              }}
-                              title="Copy Properties"
-                              aria-label="Copy Properties"
-                            >
-                              <span className="material-symbols-outlined">content_copy</span>
-                            </button>
-
-                            {/* Generate Story */}
-                            <button
-                              className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-purple-700 hover:bg-purple-900 hidden md:block"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyProperties(order);
-                                setSelectedOrder(order);
-                                setActiveModalTab("story");
-                                setIsModalOpen(true);
-                              }}
-                              title="Generate Story"
-                              aria-label="Generate Story"
-                            >
-                              <span className="material-symbols-outlined">auto_stories</span>
-                            </button>
-
-                            {/* Process & Upload images */}
-                            <button
-                              className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 hidden md:block ${loadingOrders[order.id]
-                                ? "text-gray-500 cursor-not-allowed"
-                                : "text-green-500 hover:text-green-600"
-                                } transition`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleProcessAndUploadImages(order);
-                              }}
-                              disabled={loadingOrders[order.id]}
-                              title="Process & Upload Images"
-                              aria-label="Process & Upload Images"
-                            >
-                              {loadingOrders[order.id] ? (
-                                <span className="material-symbols-outlined">arrow_upload_progress</span>
-                              ) : (
-                                <span className="material-symbols-outlined">cloud_upload</span>
-                              )}
-                            </button>
-
-                            {/* Copy Images JSON Button */}
-                            <button
-                              className={`p-1 pt-2 pr-2 pl-2 hidden md:block ${order.metafields?.some(
-                                (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                              )
-                                ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
-                                : "bg-gray-700 text-gray-500 opacity-50"
-                                } transition`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyStoryPhotosJSON(order);
-                              }}
-                              disabled={
-                                !order.metafields?.some(
-                                  (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                                )
-                              }
-                              title="Copy Images JSON"
-                              aria-label="Copy Images JSON"
-                            >
-                              <span className="material-symbols-outlined">photo_library</span>
-                            </button>
-
-                            {/* Expand row */}
-                            <button
-                              className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenModal(order);
-                              }}
-                              title="Open Order Details"
-                              aria-label="Open Order Details"
-                            >
-                              <span className="material-symbols-outlined">aspect_ratio</span>
-                            </button>
-                          </div>
-
-                          <div className="flex flex-wrap justify-center gap-2 md:flex-nowrap">
-
-                            {/* Open Shopify Order Page */}
-                            <button
-                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenShopifyOrderPage(order);
-                              }}
-                              title="Open Shopify Order Page"
-                              aria-label="Open Shopify Order Page"
-                            >
-                              <span className="material-symbols-outlined">shoppingmode</span>
-                            </button>
-
-                            {/* Open Shopify Order Page */}
-                            <button
-                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenShopifyPrintPage(order);
-                              }}
-                              title="Open Shopify Order Page"
-                              aria-label="Open Shopify Order Page"
-                            >
-                              <span className="material-symbols-outlined">print</span>
-                            </button>
-
-                            {/* Copy Password & Open Subdomain */}
-                            <button
-                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyPasswordAndOpenSubdomain(order);
-                              }}
-                              title="Copy Password & Open Subdomain"
-                              aria-label="Copy Password & Open Subdomain"
-                            >
-                              <span className="material-symbols-outlined">language</span>
-                            </button>
-
-                            <button
-                              className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopySubdomainAndOpenLocalhost(order);
-                              }}
-                              title="Open Subdomain in Localhost"
-                              aria-label="Open Subdomain in Localhost"
-                            >
-                              <span className="material-symbols-outlined">dns</span>
-                            </button>
-                          </div>
-
-                          {/* Progress Indicators (Optional) */}
-                          {downloadProgress[order.id] && (
-                            <div className="mt-1 text-xs text-white">
-                              Downloading {downloadProgress[order.id].current} / {downloadProgress[order.id].total}
-                            </div>
-                          )}
-                          {uploadProgress[order.id] && (
-                            <div className="mt-1 text-xs text-white">
-                              Uploading {uploadProgress[order.id].current} / {uploadProgress[order.id].total}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Main Table */}
+        <OrdersTable
+          orders={orders}
+          isLoading={isLoading}
+          subdomains={subdomains}
+          toggledRows={toggledRows}
+          loadingOrders={loadingOrders}
+          storyStages={storyStages}
+          printablesStatuses={printablesStatuses}
+          fulfillmentStatuses={fulfillmentStatuses}
+          uploadProgress={uploadProgress}
+          downloadProgress={downloadProgress}
+          storyStageOptions={storyStageOptions}
+          printablesStatusOptions={printablesStatusOptions}
+          fulfillmentStatusOptions={fulfillmentStatusOptions}
+          setSubdomains={setSubdomains}
+          handleOpenModal={handleOpenModal}
+          handleCopyProperties={handleCopyProperties}
+          handleProcessAndUploadImages={handleProcessAndUploadImages}
+          handleCopyStoryPhotosJSON={handleCopyStoryPhotosJSON}
+          handleCopyPasswordAndOpenSubdomain={handleCopyPasswordAndOpenSubdomain}
+          handleCopySubdomainAndOpenLocalhost={handleCopySubdomainAndOpenLocalhost}
+          handleOpenShopifyOrderPage={handleOpenShopifyOrderPage}
+          handleOpenShopifyPrintPage={handleOpenShopifyPrintPage}
+          handleSendPreviewLink={handleSendPreviewLink}
+          handleSaveSubdomain={handleSaveSubdomain}
+          handleGenerateQRCode={handleGenerateQRCode}
+          handleStoryStageChange={handleStoryStageChange}
+          handlePrintablesStatusChange={handlePrintablesStatusChange}
+          handleFulfillmentStatusChange={handleFulfillmentStatusChange}
+          setSelectedOrder={setSelectedOrder}
+          setActiveModalTab={setActiveModalTab}
+          setIsModalOpen={setIsModalOpen}
+        />
 
         {/* Image Upload Modal */}
         <ImageUploadModal
@@ -2423,7 +1992,49 @@ const OrdersPage = () => {
 
                 {/* Statuses */}
                 <div className={`text-gray-800 dark:text-gray-300 mt-2 md:mt-0 ${isMobile() ? "w-full" : "w-auto"}`}>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Mobile: Story+Printables side by side, Fulfillment below */}
+                  <div className="flex flex-col gap-2 md:hidden">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
+                        <select
+                          className={`w-full p-1.5 text-sm border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(storyStages[selectedOrder.id] || "Pending")}`}
+                          value={storyStages[selectedOrder.id] || "Pending"}
+                          onChange={(e) => handleStoryStageChange(selectedOrder.id, e.target.value)}
+                        >
+                          {storyStageOptions.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
+                        <select
+                          className={`w-full p-1.5 text-sm border rounded text-gray-800 dark:text-gray-100 ${getPrintablesStatusSelectClassName(printablesStatuses[selectedOrder.id] || "Pending")}`}
+                          value={printablesStatuses[selectedOrder.id] || "Pending"}
+                          onChange={(e) => handlePrintablesStatusChange(selectedOrder.id, e.target.value)}
+                        >
+                          {printablesStatusOptions.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
+                      <select
+                        className={`w-full p-1.5 text-sm border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(fulfillmentStatuses[selectedOrder.id] || "New Order")}`}
+                        value={fulfillmentStatuses[selectedOrder.id] || "New Order"}
+                        onChange={(e) => handleFulfillmentStatusChange(selectedOrder.id, e.target.value)}
+                      >
+                        {fulfillmentStatusOptions.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {/* Desktop: all 3 in a row */}
+                  <div className="hidden md:grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
                       <select
@@ -2432,13 +2043,10 @@ const OrdersPage = () => {
                         onChange={(e) => handleStoryStageChange(selectedOrder.id, e.target.value)}
                       >
                         {storyStageOptions.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
+                          <option key={status} value={status}>{status}</option>
                         ))}
                       </select>
                     </div>
-
                     <div>
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
                       <select
@@ -2447,13 +2055,10 @@ const OrdersPage = () => {
                         onChange={(e) => handlePrintablesStatusChange(selectedOrder.id, e.target.value)}
                       >
                         {printablesStatusOptions.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
+                          <option key={status} value={status}>{status}</option>
                         ))}
                       </select>
                     </div>
-
                     <div>
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
                       <select
@@ -2462,9 +2067,7 @@ const OrdersPage = () => {
                         onChange={(e) => handleFulfillmentStatusChange(selectedOrder.id, e.target.value)}
                       >
                         {fulfillmentStatusOptions.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
+                          <option key={status} value={status}>{status}</option>
                         ))}
                       </select>
                     </div>
@@ -2476,7 +2079,7 @@ const OrdersPage = () => {
                     e.stopPropagation();
                     setIsModalOpen(false);
                   }}
-                  className="text-gray-500 hover:text-gray-700 z-10 absolute top-4 right-4 md:top-6 md:right-6 p-2 rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 flex items-center justify-center h-8 w-8"
+                  className="text-gray-500 hover:text-gray-700 z-10 absolute top-3 right-3 md:top-6 md:right-6 p-2 rounded-full bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 flex items-center justify-center h-8 w-8"
                 >
                   <span className="material-symbols-outlined text-lg">close</span>
                 </button>
@@ -2485,6 +2088,7 @@ const OrdersPage = () => {
               {/* TAB BAR */}
               <div className="flex border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 md:px-6 shrink-0">
                 {[
+                  { key: "delivery", label: "Delivery", icon: "local_shipping" },
                   { key: "details", label: "Details", icon: "info" },
                   { key: "story", label: "Story", icon: "auto_stories" },
                   { key: "images", label: "Images", icon: "photo_library" },
@@ -2511,841 +2115,369 @@ const OrdersPage = () => {
 
               {/* TAB CONTENT */}
 
+              {/* TAB 0: Delivery Info */}
+              {activeModalTab === "delivery" && (
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-48 md:pb-6">
+                <div className="max-w-2xl mx-auto flex flex-col gap-5">
+
+                  {/* Key Info - Big for driver visibility */}
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">City</div>
+                      <div className="text-3xl md:text-2xl font-black text-yellow-400">{(selectedOrder?.shipping_address?.city || "—").toUpperCase()}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Total</div>
+                      <div className="text-3xl md:text-2xl font-black text-green-400">{selectedOrder?.currencyCode} {selectedOrder?.totalPriceSet?.shopMoney?.amount || "—"}</div>
+                    </div>
+                  </div>
+
+                  {/* Customer + Contact */}
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-1 mb-3">Customer</h3>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-11 h-11 rounded-full bg-gray-700 text-gray-300 font-bold text-lg">
+                          {selectedOrder?.shipping_address?.first_name?.[0] || "?"}{selectedOrder?.shipping_address?.last_name?.[0] || ""}
+                        </div>
+                        <div>
+                          <div className="font-bold text-lg text-white">{selectedOrder?.shipping_address?.first_name} {selectedOrder?.shipping_address?.last_name}</div>
+                          {selectedOrder?.email && <div className="text-sm text-gray-400">{selectedOrder.email}</div>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <a href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), `Hello ${selectedOrder?.shipping_address?.first_name}`)} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-green-700 hover:bg-green-600 text-white transition text-sm font-medium">
+                          <span className="material-symbols-outlined text-[22px]">chat</span>
+                          WhatsApp
+                        </a>
+                        <a href={`tel:${getPhoneNumber(selectedOrder)}`} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-blue-700 hover:bg-blue-600 text-white transition text-sm font-medium">
+                          <span className="material-symbols-outlined text-[22px]">call</span>
+                          Call
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery Notes - prominent */}
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-1 mb-3">Delivery Notes</h3>
+                    {selectedOrder?.note ? (
+                      <div className="text-base text-yellow-200 bg-yellow-900/30 rounded-lg p-4 border-2 border-yellow-700/50 whitespace-pre-wrap font-medium">{selectedOrder.note}</div>
+                    ) : (
+                      <div className="text-sm text-gray-500 italic">No delivery notes</div>
+                    )}
+                  </div>
+
+                  {/* Shipping Address */}
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-1 mb-3">Shipping Address</h3>
+                    {selectedOrder?.shipping_address ? (
+                      <div className="text-base text-gray-300 leading-relaxed">
+                        <div className="font-bold text-white text-lg">{selectedOrder.shipping_address.first_name} {selectedOrder.shipping_address.last_name}</div>
+                        {selectedOrder.shipping_address.address1 && <div>{selectedOrder.shipping_address.address1}</div>}
+                        {selectedOrder.shipping_address.address2 && <div>{selectedOrder.shipping_address.address2}</div>}
+                        <div className="font-semibold text-white">
+                          {[selectedOrder.shipping_address.city, selectedOrder.shipping_address.province, selectedOrder.shipping_address.zip].filter(Boolean).join(", ")}
+                        </div>
+                        {selectedOrder.shipping_address.country && <div>{selectedOrder.shipping_address.country}</div>}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 italic">No shipping address</div>
+                    )}
+                  </div>
+
+                  {/* Shipping Method */}
+                  {selectedOrder?.shipping_lines?.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-1 mb-3">Shipping Method</h3>
+                    {selectedOrder.shipping_lines.map((sl, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-300">{sl.title || sl.code || "Standard"}</span>
+                        {sl.price && <span className="text-gray-400">{selectedOrder.currencyCode} {sl.price}</span>}
+                      </div>
+                    ))}
+                  </div>
+                  )}
+
+                  {/* Line Items */}
+                  <div>
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-1 mb-3">Items</h3>
+                    <div className="flex flex-col gap-2">
+                      {selectedOrder?.line_items?.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-800 last:border-0">
+                          <div>
+                            <div className="text-gray-200 font-medium">{item.title}</div>
+                            {item.variant_title && <div className="text-xs text-gray-500">{item.variant_title}</div>}
+                          </div>
+                          <div className="text-gray-400 text-xs">x{item.quantity}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Desktop Quick Actions */}
+                  <div className="hidden md:block">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-700 pb-1 mb-3">Quick Actions</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); handleSendDeliveryMessage(selectedOrder); }} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition">
+                        <span className="material-symbols-outlined text-[18px]">chat</span>Delivery Message
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleFulfillOrder(selectedOrder); }} disabled={isFulfilling} className="flex items-center gap-2 px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-md text-sm font-medium transition disabled:opacity-50">
+                        <span className="material-symbols-outlined text-[18px]">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>{isFulfilling ? 'Processing...' : 'Mark Fulfilled'}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleOpenShopifyOrderPage(selectedOrder); }} className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-600 text-white rounded-md text-sm font-medium transition">
+                        <span className="material-symbols-outlined text-[18px]">shoppingmode</span>Shopify
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Mobile Fixed Footer - Delivery actions only */}
+                <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-700 p-3 border-t border-gray-400 shadow-lg">
+                  <div className="flex flex-row gap-2">
+                    <button
+                      className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center justify-center gap-2 flex-1 border-blue-500 border"
+                      onClick={(e) => { e.stopPropagation(); handleSendDeliveryMessage(selectedOrder); }}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">chat</span>
+                      <span className="font-medium text-sm">Delivery Msg</span>
+                    </button>
+                    <button
+                      className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-md flex items-center justify-center gap-2 flex-1 border-gray-500 border"
+                      onClick={(e) => { e.stopPropagation(); handleFulfillOrder(selectedOrder); }}
+                      disabled={isFulfilling}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>
+                      <span className="font-medium text-sm">{isFulfilling ? '...' : 'Fulfill'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              )}
+
               {/* TAB 1: Details */}
               {activeModalTab === "details" && (
               <div className="flex-1 overflow-hidden p-0">
-                <div className={`flex flex-col md:flex-row h-full overflow-hidden overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
+                <div className={`flex flex-col md:flex-row h-full overflow-hidden overflow-y-auto`}>
 
-                  {/* RIGHT HALF: Preview Cards */}
-                  <div className={`w-full md:w-1/2 p-0 md:p-6 flex items-start justify-start flex-col gap-0 md:gap-6 md:overflow-y-auto`}>
-                    <TwoFramesPreview
-                      ref={cardPreviewRef}
-                      milestoneDate={milestoneDates[selectedOrder.id]}
-                      title={storyTitles[selectedOrder.id]}
-                      dedicationLine={dedicationLines[selectedOrder.id]}
-                      qr={generatedQRCodes[selectedOrder.id]}
-                      subdomain={subdomainValue(selectedOrder)}
-                      onSendCardPreview={handleSendCardPreview}
-                      onSendToPrinter={handleSendToPrinter}
-                    />
+                  {/* LEFT PANEL: Split into Inputs (left) + PDF Preview (right) */}
+                  <div className="w-full md:w-[50%] p-4 md:p-5 md:overflow-y-auto md:border-r border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col-reverse md:flex-row gap-4 h-full">
 
-                    {/* Story Type Display and Shopify Button - Both Mobile and Desktop */}
-                    <div className="w-full px-4 py-2 flex justify-center items-center gap-3 mb-4">
-                      {(() => {
-                        const storyType = selectedOrder.line_items[0].properties.find(
-                          (prop) => prop.name === "story-type"
-                        )?.value || "Standard";
+                      {/* Left half: Input Fields */}
+                      <div className="w-full md:w-1/2 flex flex-col gap-3">
 
-                        // Define color based on story type
-                        let bgColor = "bg-gray-500";
-                        let textColor = "text-white";
+                        {/* Section Title */}
+                        <h3 className="text-xs font-bold text-gray-300 uppercase tracking-widest border-b border-gray-700 pb-1">Card Fields</h3>
 
-                        if (storyType === "mother") {
-                          bgColor = "bg-pink-500";
-                        } else if (storyType === "love") {
-                          bgColor = "bg-red-500";
-                        } else if (storyType === "friendship") {
-                          bgColor = "bg-blue-500";
-                        }
-
-                        return (
-                          <div className={`${bgColor} ${textColor} px-4 py-2 rounded-full font-medium text-sm inline-flex items-center`}>
-                            <span className="material-symbols-outlined mr-1">auto_stories</span>
-                            {storyType.charAt(0).toUpperCase() + storyType.slice(1)} Story
-                          </div>
-                        );
-                      })()}
-
-                      {/* Shopify Order Button */}
-                      <button
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full text-sm flex items-center gap-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenShopifyOrderPage(selectedOrder);
-                        }}
-                        title="Open Shopify Order Page"
-                        aria-label="Open Shopify Order Page"
-                      >
-                        <span className="material-symbols-outlined mr-1">shopping_cart</span>
-                        View in Shopify
-                      </button>
-                    </div>
-
-                    <div className="p-4 pt-0 w-full md:hidden">
-                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Milestone Date
-                      </label>
-                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{milestoneDates[selectedOrder.id] || ""}</div>
-                    </div>
-
-                    <div className="p-4 pt-0 w-full md:hidden">
-                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Story Title
-                      </label>
-                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{storyTitles[selectedOrder.id] || ""}</div>
-                    </div>
-
-                    <div className="p-4 pt-0 w-full md:hidden">
-                      <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400">
-                        Dedication Line
-                      </label>
-                      <div className={`w-full p-1 pl-2 rounded border-gray-300 text-gray-800 dark:text-gray-100 dark:bg-gray-700`}>{dedicationLines[selectedOrder.id] || ""}</div>
-                    </div>
-
-                    {/* Mobile subdomain section removed from here, moved to fixed footer */}
-
-                    {/* Column 2: Subdomain Input & Actions */}
-                    <div className="col-span-2 text-gray-800 dark:text-gray-300 p-4 md:p-0 hidden md:block">
-                      {/* Existing Components and Actions */}
-
-                      {/* New Input Fields */}
-                      <div className="w-full">
+                        {/* Bulk Actions - at top */}
+                        <div className="hidden md:flex gap-2">
+                          <button onClick={() => handleRestoreAllFields(selectedOrder)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md text-sm font-medium transition" title="Restore All">
+                            <span className="material-symbols-outlined text-[18px]">restore</span>Restore All
+                          </button>
+                          <button onClick={() => handleSaveAllFields(selectedOrder)} disabled={isMilestoneDateInSync(selectedOrder) && isStoryTitleInSync(selectedOrder) && isDedicationLineInSync(selectedOrder)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition disabled:opacity-40" title="Save All">
+                            <span className="material-symbols-outlined text-[18px]">save</span>Save All
+                          </button>
+                        </div>
 
                         {/* Milestone Date */}
-                        <div className="mb-4">
-                          <label htmlFor="milestone-date" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Milestone Date
-                          </label>
-                          <div className="mt-1 flex">
-                            <input
-                              type="text"
-                              id="milestone-date"
-                              value={milestoneDates[selectedOrder.id] || ""}
-                              onChange={(e) => setMilestoneDates((prev) => ({
-                                ...prev,
-                                [selectedOrder.id]: e.target.value,
-                              }))}
-                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isMilestoneDateInSync(selectedOrder)
-                                ? "border-green-500 "
-                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
-                                }`}
-                              placeholder="Enter milestone date"
-                              readOnly={isMobile()} /* Make read-only on mobile */
-                            />
-                            <button
-                              onClick={() => copyToClipboard(milestoneDates[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
-                              title="Save Story Title"
-                            >
-                              <span className="material-symbols-outlined">content_copy</span>
-                            </button>
-                            {/* Load Milestone Date */}
-                            <button
-                              onClick={() => {
-                                console.log("Load Milestone Date button clicked");
-                                console.log("Selected Order:", selectedOrder);
-                                console.log("Order Properties:", selectedOrder.line_items[0].properties);
-
-                                // Check if story type is mother
-                                const storyType = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "story-type"
-                                );
-                                console.log("Story Type:", storyType);
-
-                                // Check all property names to help debug
-                                const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
-                                console.log("All property names:", propertyNames);
-
-                                if (storyType?.value === "mother") {
-                                  console.log("This is a mother story type");
-                                  // For mother stories, use localized "A Mother's Story" based on language
-                                  const languageProp = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "story-language"
-                                  );
-                                  const language = languageProp?.value || "en";
-
-                                  let milestoneValue = "";
-                                  if (language === "ar") {
-                                    milestoneValue = "قصّة أمّ";
-                                  } else if (language === "fr") {
-                                    milestoneValue = "L'histoire d'une mère";
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Milestone Date</label>
+                          {isMobile() ? (
+                            <div className="w-full px-3 py-2 rounded-md border border-gray-600 text-sm text-gray-100 bg-gray-700">{milestoneDates[selectedOrder.id] || "—"}</div>
+                          ) : (
+                            <>
+                              <input
+                                type="text"
+                                id="milestone-date"
+                                value={milestoneDates[selectedOrder.id] || ""}
+                                onChange={(e) => setMilestoneDates((prev) => ({ ...prev, [selectedOrder.id]: e.target.value }))}
+                                className={`w-full px-3 py-2 rounded-md border text-sm dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${isMilestoneDateInSync(selectedOrder) ? "border-green-500" : "border-gray-500 dark:text-gray-100"}`}
+                                placeholder="Enter milestone date"
+                              />
+                              <div className="flex gap-1.5 mt-1.5">
+                                <button onClick={() => copyToClipboard(milestoneDates[selectedOrder.id] || "")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs transition" title="Copy"><span className="material-symbols-outlined text-[16px]">content_copy</span>Copy</button>
+                                <button onClick={() => {
+                                  const stType = selectedOrder.line_items[0].properties.find((p) => p.name === "story-type");
+                                  if (stType?.value === "mother") {
+                                    const lang = selectedOrder.line_items[0].properties.find((p) => p.name === "story-language")?.value || "en";
+                                    const val = lang === "ar" ? "قصّة أمّ" : lang === "fr" ? "L'histoire d'une mère" : "A Mother's Story";
+                                    setMilestoneDates((prev) => ({ ...prev, [selectedOrder.id]: val }));
                                   } else {
-                                    milestoneValue = "A Mother's Story";
+                                    const names = ["milestone_date", "milestone date", "milestone-date"];
+                                    let val = "";
+                                    for (const n of names) { const p = selectedOrder.line_items[0].properties.find((pr) => pr.name === n); if (p?.value) { val = p.value; break; } }
+                                    setMilestoneDates((prev) => ({ ...prev, [selectedOrder.id]: val }));
                                   }
-
-                                  // Force update the DOM by using a timeout
-                                  setTimeout(() => {
-                                    setMilestoneDates((prev) => ({
-                                      ...prev,
-                                      [selectedOrder.id]: milestoneValue,
-                                    }));
-                                  }, 0);
-
-                                  // Also update the input field directly for immediate feedback
-                                  const inputField = document.getElementById("milestone-date") as HTMLInputElement;
-                                  if (inputField) {
-                                    inputField.value = milestoneValue;
-                                  }
-                                } else {
-                                  // Default behavior for non-mother story types
-                                  // Try all possible property name variations
-                                  const possibleNames = ["milestone_date", "milestone date", "milestone-date"];
-                                  let value = "";
-
-                                  for (const name of possibleNames) {
-                                    const property = selectedOrder.line_items[0].properties.find(
-                                      (prop) => prop.name === name
-                                    );
-                                    if (property?.value) {
-                                      value = property.value;
-                                      break;
-                                    }
-                                  }
-
-                                  // Force update the DOM by using a timeout
-                                  setTimeout(() => {
-                                    setMilestoneDates((prev) => ({
-                                      ...prev,
-                                      [selectedOrder.id]: value,
-                                    }));
-                                  }, 0);
-
-                                  // Also update the input field directly for immediate feedback
-                                  const inputField = document.getElementById("milestone-date") as HTMLInputElement;
-                                  if (inputField) {
-                                    inputField.value = value;
-                                  }
-                                }
-                              }}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                              title="Load Milestone Date"
-                              disabled={isMobile()} /* Disable on mobile */
-                            >
-                              <span className="material-symbols-outlined">restore</span>
-                            </button>
-                            {/* Save Milestone Date */}
-                            <button
-                              onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isMilestoneDateInSync(selectedOrder) || isMobile()} /* Disable on mobile */
-                              title="Save Milestone Date"
-                            >
-                              <span className="material-symbols-outlined">save</span>
-                            </button>
-                          </div>
+                                }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs transition" title="Load from order"><span className="material-symbols-outlined text-[16px]">restore</span>Load</button>
+                                <button onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")} disabled={isMilestoneDateInSync(selectedOrder)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs transition disabled:opacity-40" title="Save"><span className="material-symbols-outlined text-[16px]">save</span>Save</button>
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         {/* Story Title */}
-                        <div className="mb-4">
-                          <label htmlFor="story-title" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Story Title
-                          </label>
-                          <div className="mt-1 flex">
-                            <textarea
-                              id="story-title"
-                              value={storyTitles[selectedOrder.id] || ""}
-                              onChange={(e) => setStoryTitles((prev) => ({
-                                ...prev,
-                                [selectedOrder.id]: e.target.value,
-                              }))}
-                              className={`p-2 flex-1 block w-full rounded-md dark:bg-gray-700 border shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isStoryTitleInSync(selectedOrder)
-                                ? "border-green-500 "
-                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
-                                }`}
-                              placeholder="Enter story title"
-                              readOnly={isMobile()} /* Make read-only on mobile */
-                              rows={3}
-                              style={{ resize: "vertical", minHeight: "80px" }}
-                            />
-                            <button
-                              onClick={() => copyToClipboard(storyTitles[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
-                              title="Save Story Title"
-                            >
-                              <span className="material-symbols-outlined">content_copy</span>
-                            </button>
-                            {/* Load Story Title */}
-                            <button
-                              onClick={() => {
-                                console.log("Load Story Title button clicked");
-                                console.log("Selected Order:", selectedOrder);
-                                console.log("Order Properties:", selectedOrder.line_items[0].properties);
-
-                                // Check if story type is mother
-                                const storyType = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "story-type"
-                                );
-                                console.log("Story Type:", storyType);
-
-                                // Check all property names to help debug
-                                const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
-                                console.log("All property names:", propertyNames);
-
-                                if (storyType?.value === "mother") {
-                                  console.log("This is a mother story type");
-                                  // For mother story, use mom_name from product properties
-                                  const momNameProp = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "mom_name"
-                                  );
-                                  console.log("Mom Name Property:", momNameProp);
-                                  const momName = momNameProp?.value || "";
-
-                                  // Force update the DOM by using a timeout
-                                  setTimeout(() => {
-                                    setStoryTitles((prev) => ({
-                                      ...prev,
-                                      [selectedOrder.id]: momName,
-                                    }));
-                                  }, 0);
-
-                                  // Also update the input field directly for immediate feedback
-                                  const inputField = document.getElementById("story-title") as HTMLInputElement;
-                                  if (inputField) {
-                                    inputField.value = momName;
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Story Title</label>
+                          {isMobile() ? (
+                            <div className="w-full px-3 py-2 rounded-md border border-gray-600 text-sm text-gray-100 bg-gray-700">{storyTitles[selectedOrder.id] || "—"}</div>
+                          ) : (
+                            <>
+                              <textarea
+                                id="story-title"
+                                value={storyTitles[selectedOrder.id] || ""}
+                                onChange={(e) => setStoryTitles((prev) => ({ ...prev, [selectedOrder.id]: e.target.value }))}
+                                className={`w-full px-3 py-2 rounded-md border text-sm dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${isStoryTitleInSync(selectedOrder) ? "border-green-500" : "border-gray-500 dark:text-gray-100"}`}
+                                placeholder="Enter story title"
+                                rows={2}
+                                style={{ resize: "vertical", minHeight: "56px" }}
+                              />
+                              <div className="flex gap-1.5 mt-1.5">
+                                <button onClick={() => copyToClipboard(storyTitles[selectedOrder.id] || "")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs transition" title="Copy"><span className="material-symbols-outlined text-[16px]">content_copy</span>Copy</button>
+                                <button onClick={() => {
+                                  const stType = selectedOrder.line_items[0].properties.find((p) => p.name === "story-type");
+                                  if (stType?.value === "mother") {
+                                    const val = selectedOrder.line_items[0].properties.find((p) => p.name === "mom_name")?.value || "";
+                                    setStoryTitles((prev) => ({ ...prev, [selectedOrder.id]: val }));
+                                  } else {
+                                    const val = selectedOrder.line_items[0].properties.find((p) => p.name === "title")?.value || "";
+                                    setStoryTitles((prev) => ({ ...prev, [selectedOrder.id]: val }));
                                   }
-                                } else {
-                                  // Default behavior for non-mother story types
-                                  const property = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "title"
-                                  );
-                                  const value = property?.value || "";
-
-                                  // Force update the DOM by using a timeout
-                                  setTimeout(() => {
-                                    setStoryTitles((prev) => ({
-                                      ...prev,
-                                      [selectedOrder.id]: value,
-                                    }));
-                                  }, 0);
-
-                                  // Also update the input field directly for immediate feedback
-                                  const inputField = document.getElementById("story-title") as HTMLInputElement;
-                                  if (inputField) {
-                                    inputField.value = value;
-                                  }
-                                }
-                              }}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                              title="Load Story Title"
-                              disabled={isMobile()} /* Disable on mobile */
-                            >
-                              <span className="material-symbols-outlined">restore</span>
-                            </button>
-                            {/* Save Story Title */}
-                            <button
-                              onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isStoryTitleInSync(selectedOrder) || isMobile()} /* Disable on mobile */
-                              title="Save Story Title"
-                            >
-                              <span className="material-symbols-outlined">save</span>
-                            </button>
-                          </div>
+                                }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs transition" title="Load from order"><span className="material-symbols-outlined text-[16px]">restore</span>Load</button>
+                                <button onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")} disabled={isStoryTitleInSync(selectedOrder)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs transition disabled:opacity-40" title="Save"><span className="material-symbols-outlined text-[16px]">save</span>Save</button>
+                              </div>
+                            </>
+                          )}
                         </div>
 
                         {/* Dedication Line */}
-                        <div className="mb-4">
-                          <label htmlFor="dedication-line" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Dedication Line
-                          </label>
-                          <div className="mt-1 flex">
-                            <input
-                              type="text"
-                              id="dedication-line"
-                              value={dedicationLines[selectedOrder.id] || ""}
-                              onChange={(e) => setDedicationLines((prev) => ({
-                                ...prev,
-                                [selectedOrder.id]: e.target.value,
-                              }))}
-                              className={`p-2 flex-1 block w-full rounded-md border dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isDedicationLineInSync(selectedOrder)
-                                ? "border-green-500 "
-                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
-                                }`}
-                              placeholder="Enter dedication line"
-                              readOnly={isMobile()} /* Make read-only on mobile */
-                            />
-                            <button
-                              onClick={() => copyToClipboard(dedicationLines[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
-                              title="Save Story Title"
-                            >
-                              <span className="material-symbols-outlined">content_copy</span>
-                            </button>
-                            {/* Load Dedication Line */}
-                            <button
-                              onClick={() => {
-                                console.log("Load Dedication Line button clicked");
-                                console.log("Selected Order:", selectedOrder);
-                                console.log("Order Properties:", selectedOrder.line_items[0].properties);
-
-                                // Check if story type is mother
-                                const storyType = selectedOrder.line_items[0].properties.find(
-                                  (prop) => prop.name === "story-type"
-                                );
-                                console.log("Story Type:", storyType);
-
-                                // Check all property names to help debug
-                                const propertyNames = selectedOrder.line_items[0].properties.map(p => p.name);
-                                console.log("All property names:", propertyNames);
-
-                                if (storyType?.value === "mother") {
-                                  console.log("This is a mother story type");
-                                  // For mother story, use "By {kids_name}"
-                                  const kidsNameProp = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "kids_name"
-                                  );
-                                  console.log("Kids Name Property:", kidsNameProp);
-                                  const kidsName = kidsNameProp?.value || "";
-
-                                  const dedicationValue = kidsName ? `By ${kidsName}` : "";
-
-                                  // Force update the DOM by using a timeout
-                                  setTimeout(() => {
-                                    setDedicationLines((prev) => ({
-                                      ...prev,
-                                      [selectedOrder.id]: dedicationValue,
-                                    }));
-                                  }, 0);
-
-                                  // Also update the input field directly for immediate feedback
-                                  const inputField = document.getElementById("dedication-line") as HTMLInputElement;
-                                  if (inputField) {
-                                    inputField.value = dedicationValue;
-                                  }
-                                } else {
-                                  // Default behavior for non-mother story types
-                                  const property = selectedOrder.line_items[0].properties.find(
-                                    (prop) => prop.name === "dedication_line"
-                                  );
-                                  let value = property?.value || "";
-
-                                  if (!value) {
-                                    // Get their_name and your_name from order properties
-                                    const theirNameProperty = selectedOrder.line_items[0].properties.find(
-                                      (prop) => prop.name === "their_name"
-                                    );
-                                    const yourNameProperty = selectedOrder.line_items[0].properties.find(
-                                      (prop) => prop.name === "your_name"
-                                    );
-
-                                    const theirName = theirNameProperty?.value || "";
-                                    const yourName = yourNameProperty?.value || "";
-
-                                    // Concatenate if both names exist
-                                    if (theirName && yourName) {
-                                      value = `For ${theirName}, By ${yourName}`;
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Dedication Line</label>
+                          {isMobile() ? (
+                            <div className="w-full px-3 py-2 rounded-md border border-gray-600 text-sm text-gray-100 bg-gray-700">{dedicationLines[selectedOrder.id] || "—"}</div>
+                          ) : (
+                            <>
+                              <textarea
+                                id="dedication-line"
+                                value={dedicationLines[selectedOrder.id] || ""}
+                                onChange={(e) => setDedicationLines((prev) => ({ ...prev, [selectedOrder.id]: e.target.value }))}
+                                className={`w-full px-3 py-2 rounded-md border text-sm dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ${isDedicationLineInSync(selectedOrder) ? "border-green-500" : "border-gray-500 dark:text-gray-100"}`}
+                                placeholder="Enter dedication line"
+                                rows={2}
+                                style={{ resize: "vertical", minHeight: "56px" }}
+                              />
+                              <div className="flex gap-1.5 mt-1.5">
+                                <button onClick={() => copyToClipboard(dedicationLines[selectedOrder.id] || "")} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs transition" title="Copy"><span className="material-symbols-outlined text-[16px]">content_copy</span>Copy</button>
+                                <button onClick={() => {
+                                  const stType = selectedOrder.line_items[0].properties.find((p) => p.name === "story-type");
+                                  if (stType?.value === "mother") {
+                                    const kn = selectedOrder.line_items[0].properties.find((p) => p.name === "kids_name")?.value || "";
+                                    setDedicationLines((prev) => ({ ...prev, [selectedOrder.id]: kn ? `By ${kn}` : "" }));
+                                  } else {
+                                    let val = selectedOrder.line_items[0].properties.find((p) => p.name === "dedication_line")?.value || "";
+                                    if (!val) {
+                                      const tn = selectedOrder.line_items[0].properties.find((p) => p.name === "their_name")?.value || "";
+                                      const yn = selectedOrder.line_items[0].properties.find((p) => p.name === "your_name")?.value || "";
+                                      if (tn && yn) val = `For ${tn}, By ${yn}`;
                                     }
+                                    setDedicationLines((prev) => ({ ...prev, [selectedOrder.id]: val }));
                                   }
-
-                                  // Force update the DOM by using a timeout
-                                  setTimeout(() => {
-                                    setDedicationLines((prev) => ({
-                                      ...prev,
-                                      [selectedOrder.id]: value,
-                                    }));
-                                  }, 0);
-
-                                  // Also update the input field directly for immediate feedback
-                                  const inputField = document.getElementById("dedication-line") as HTMLInputElement;
-                                  if (inputField) {
-                                    inputField.value = value;
-                                  }
-                                }
-                              }}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                              title="Load Dedication Line"
-                              disabled={isMobile()} /* Disable on mobile */
-                            >
-                              <span className="material-symbols-outlined">restore</span>
-                            </button>
-                            {/* Save Dedication Line */}
-                            <button
-                              onClick={() => handleSaveDedicationLine(selectedOrder.id, dedicationLines[selectedOrder.id] || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md"
-                              disabled={isDedicationLineInSync(selectedOrder) || isMobile()} /* Disable on mobile */
-                              title="Save Dedication Line"
-                            >
-                              <span className="material-symbols-outlined">save</span>
-                            </button>
-                          </div>
+                                }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs transition" title="Load from order"><span className="material-symbols-outlined text-[16px]">restore</span>Load</button>
+                                <button onClick={() => handleSaveDedicationLine(selectedOrder.id, dedicationLines[selectedOrder.id] || "")} disabled={isDedicationLineInSync(selectedOrder)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs transition disabled:opacity-40" title="Save"><span className="material-symbols-outlined text-[16px]">save</span>Save</button>
+                              </div>
+                            </>
+                          )}
                         </div>
 
-                        {/* Bulk Actions for Fields */}
-                        <div className="mt-6 mb-4 flex justify-center space-x-4">
-                          <button
-                            onClick={() => handleRestoreAllFields(selectedOrder)}
-                            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md flex items-center"
-                            disabled={isMobile()} /* Disable on mobile */
-                            title="Restore All Fields"
-                          >
-                            <span className="material-symbols-outlined mr-2">restore</span>
-                            Restore All
-                          </button>
-                          <button
-                            onClick={() => handleSaveAllFields(selectedOrder)}
-                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md flex items-center"
-                            disabled={
-                              (isMilestoneDateInSync(selectedOrder) && 
-                               isStoryTitleInSync(selectedOrder) && 
-                               isDedicationLineInSync(selectedOrder)) || 
-                              isMobile()
-                            } /* Disable on mobile or if all fields are in sync */
-                            title="Save All Fields"
-                          >
-                            <span className="material-symbols-outlined mr-2">save</span>
-                            Save All
-                          </button>
-                        </div>
-
-                        {/* Subdomain Input & Actions */}
-                        <div className="mb-4">
-                          <label htmlFor="dedication-line" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                            Subdomain
-                          </label>
-                          <div className="mt-1 flex">
-                            <input
-                              type="text"
-                              id="dedication-line"
-                              value={subdomainValue(selectedOrder)}
-                              onChange={(e) =>
-                                setSubdomains((prev) => ({
-                                  ...prev,
-                                  [selectedOrder.id]: e.target.value,
-                                }))
-                              }
-                              className={`p-2 flex-1 block w-full rounded-md border dark:bg-gray-700 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${isDedicationLineInSync(selectedOrder)
-                                ? "border-green-500 "
-                                : "border-gray-300 dark:bg-gray-700 dark:text-gray-100"
-                                }`}
-                              placeholder="Subdomain"
-                              disabled
-                            />
-                            <button
-                              onClick={() => copyToClipboard(subdomainValue(selectedOrder) || "")}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
-                              title="Save Story Title"
-                            >
-                              <span className="material-symbols-outlined">content_copy</span>
-                            </button>
-                            <button
-                              onClick={() => handleGenerateQRCode(subdomainValue(selectedOrder))}
-                              disabled={!subdomainValue(selectedOrder)}
-                              className="ml-2 p-1 pt-2 pr-2 pl-2 dark:bg-gray-700 hover:bg-blue-600 text-white rounded-md "
-                            >
-                              <span className="material-symbols-outlined">qr_code</span>
-                            </button>
+                        {/* Subdomain */}
+                        <div className="hidden md:block">
+                          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Subdomain</label>
+                          <div className="flex gap-2 items-center">
+                            <input type="text" value={subdomainValue(selectedOrder)} disabled className="flex-1 px-3 py-2 rounded-md border border-gray-600 text-sm dark:bg-gray-700 dark:text-gray-300 opacity-75" />
+                            <button onClick={() => copyToClipboard(subdomainValue(selectedOrder) || "")} className="flex items-center gap-1 px-2.5 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs transition" title="Copy"><span className="material-symbols-outlined text-[16px]">content_copy</span></button>
+                            <button onClick={() => handleGenerateQRCode(subdomainValue(selectedOrder))} disabled={!subdomainValue(selectedOrder)} className="flex items-center gap-1 px-2.5 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs transition disabled:opacity-40" title="Generate QR"><span className="material-symbols-outlined text-[16px]">qr_code</span></button>
                           </div>
                         </div>
 
                       </div>
-                    </div>
 
-                  </div>
-
-                  {/* Mobile Fixed Footer for Subdomain Actions */}
-                  <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-700 p-3 border-t border-gray-400 shadow-lg">
-                    <div className="flex flex-col gap-3">
-
-                      <div className="flex flex-row gap-3">
-                        <div className="w-1/2">
-                          {/* <div className="text-sm font-medium text-gray-300 mb-1">SUBDOMAIN</div> */}
-                          <div className="p-3 rounded bg-gray-800 text-white text-base font-medium truncate border border-gray-400 border">{subdomainValue(selectedOrder)}</div>
-                        </div>
-
-                        {/* NFC Button - Full width, first opens QR code scanner, then NFC writing */}
-                        <button
-                          className="p-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Open QR code scanner first
-                            setIsSubdomainCheckOpen(true);
-                          }}
-                          title="Write URL to NFC Tag"
-                          aria-label="Write URL to NFC Tag"
-                        >
-                          <span className="material-symbols-outlined">nfc</span>
-                          <span className="font-medium text-sm md:text-lg">Prepare NFC Card</span>
-                        </button>
+                      {/* Right half: PDF Preview */}
+                      <div className="w-full md:w-1/2 flex flex-col gap-3">
+                        <h3 className="text-xs font-bold text-gray-300 uppercase tracking-widest border-b border-gray-700 pb-1">Card Preview</h3>
+                        <TwoFramesPreview
+                          ref={cardPreviewRef}
+                          milestoneDate={milestoneDates[selectedOrder.id]}
+                          title={storyTitles[selectedOrder.id]}
+                          dedicationLine={dedicationLines[selectedOrder.id]}
+                          qr={generatedQRCodes[selectedOrder.id]}
+                          subdomain={subdomainValue(selectedOrder)}
+                          onSendCardPreview={handleSendCardPreview}
+                          onSendToPrinter={handleSendToPrinter}
+                        />
                       </div>
 
-                      {/* Delivery Message and Fulfill Order Buttons - Side by side on mobile */}
-                      <div className="flex flex-row gap-3">
-                        {/* Delivery Message Button */}
-                        <button
-                          className="p-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors border-gray-400 border"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSendDeliveryMessage(selectedOrder);
-                          }}
-                          title="Send Delivery Message"
-                          aria-label="Send Delivery Message"
-                        >
-                          <span className="material-symbols-outlined">send</span>
-                          <span className="font-medium text-sm md:text-lg">Delivery Msg</span>
-                        </button>
-
-                        {/* Fulfill Order Button */}
-                        <button
-                          className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-md shadow-lg flex items-center justify-center gap-2 w-1/2 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors border-gray-400 border"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFulfillOrder(selectedOrder);
-                          }}
-                          disabled={isFulfilling}
-                          title="Mark as Fulfilled & Paid"
-                          aria-label="Mark as Fulfilled & Paid"
-                        >
-                          <span className="material-symbols-outlined">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>
-                          <span className="font-medium text-sm md:text-lg">{isFulfilling ? 'Processing...' : 'Mark Fulfilled'}</span>
-                        </button>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Spacer for fixed mobile footer in modal */}
-                  <div className="md:hidden h-16 mb-2"></div>
+                  {/* RIGHT PANEL: Customer, Actions, Properties */}
+                  <div className="w-full md:w-[50%] md:overflow-y-auto p-4 md:p-5 flex flex-col gap-4 md:pb-6 pb-44">
 
-                  {/* LEFT HALF: Scrollable list of filtered properties */}
-                  <div className="w-full md:w-1/2 md:overflow-y-auto p-6 flex flex-col align-center justify-start relative md:pb-6 pb-44">
-                    <div className="text-center font-bold bg-black p-4 md:block hidden">ORDER PROPERTIES</div>
-
-                    {/* Column 1: Order Info (with WhatsApp Quick-Action Buttons) */}
-                    <div className="col-span-9 md:col-span-2 text-gray-800 dark:text-gray-300">
-                      <b>{selectedOrder.name}</b>
-                      <br />
-                      {selectedOrder?.shipping_address?.first_name} {selectedOrder?.shipping_address?.last_name}
-                      <br />
-                      {/* Show phone or "N/A" */}
-                      <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)))}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden md:inline-block text-blue-500 underline"
-                      >
-                        {getPhoneNumber(selectedOrder) || "N/A"}
-                      </a>
-                      <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)))}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="md:hidden text-blue-500 underline"
-                      >
-                        {getPhoneNumber(selectedOrder) || "N/A"}
-                      </a>
-                      <br />
-
-                      {/* 1) Quick Hello Button */}
-                      <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)),
-                          `Hello ${selectedOrder?.shipping_address?.first_name}`
+                    {/* Customer Info + WhatsApp + Quick Links */}
+                    <div className="flex flex-wrap items-center gap-3 text-gray-800 dark:text-gray-300">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-base">{selectedOrder?.shipping_address?.first_name} {selectedOrder?.shipping_address?.last_name}</span>
+                        {selectedOrder?.shipping_address?.city && <span className="text-xs text-gray-500">{selectedOrder.shipping_address.city}</span>}
+                      </div>
+                      <a href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)))} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline text-sm">{getPhoneNumber(selectedOrder) || "N/A"}</a>
+                      <div className="flex gap-1.5 ml-auto">
+                        <a href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), `Hello ${selectedOrder?.shipping_address?.first_name}`)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-10 h-10 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Quick Hello"><span className="material-symbols-outlined text-[22px]">waving_hand</span></a>
+                        <a href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)), `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-10 h-10 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Thank You"><span className="material-symbols-outlined text-[22px]">volunteer_activism</span></a>
+                        {selectedOrder.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-url") && (
+                          <button onClick={(e) => { e.stopPropagation(); handleSendPreviewLink(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded-md bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Send Preview Link"><span className="material-symbols-outlined text-[22px]">Draft</span></button>
                         )}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
-                      >
-                        <span className="material-symbols-outlined">waving_hand</span>
-                      </a>
-
-                      {/* 2) Thank You / Intro Message Button */}
-                      <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)),
-                          `Hello ${selectedOrder?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`
-                        )}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block mr-2 mt-2"
-                      >
-                        <span className="material-symbols-outlined">volunteer_activism</span>
-                      </a>
-
-                      {/* 3) Draft Link Button (only if "story-url" metafield exists) */}
-                      {selectedOrder.metafields?.some(
-                        (mf) => mf.namespace === "custom" && mf.key === "story-url"
-                      ) && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSendPreviewLink(selectedOrder);
-                            }}
-                            className="hidden md:inline-block text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 inline-block"
-                          >
-                            <span className="material-symbols-outlined">Draft</span>
-                          </button>
-                        )}
+                        <button onClick={(e) => { e.stopPropagation(); handleOpenShopifyOrderPage(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded-md bg-purple-700 hover:bg-purple-600 text-white transition" title="View in Shopify"><span className="material-symbols-outlined text-[22px]">shoppingmode</span></button>
+                      </div>
                     </div>
 
-                    {selectedOrder && selectedOrder.line_items[0].properties.filter(
-                      (prop) =>
-                        ["_original_view_2",].includes(prop.name)
-                    ).map((prop, index) => !!prop.value ? (
-                      <Image
-                        key={`original-view-${index}`}
-                        src={prop.value}
-                        alt={prop.value}
-                        width={200}
-                        height={200}
-                        className="rounded m-auto mb-6 mt-6 w-auto h-auto"
-                      />
-                    ) : null)
-                    }
-
-                    <div className="flex flex-col items-start justify-start gap-4 mb-8 hidden md:flex">
-
-                      <div className="col-span-2 text-center flex items-start justify-end gap-2 w-full">
-                        {/* Copy Properties */}
-                        <button
-                          className="text-white-500 hover:text-white-600 transition p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyProperties(selectedOrder);
-                          }}
-                        >
-                          <span className="material-symbols-outlined">
-                            content_copy
-                          </span>
-                        </button>
-
-                        {/* Download images as ZIP */}
-                        <button
-                          className={`p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders2[selectedOrder.id]
-                            ? "text-gray-500 cursor-not-allowed"
-                            : "text-blue-500 hover:text-blue-600"
-                            } transition`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadImagesAsZip(selectedOrder);
-                          }}
-                          disabled={loadingOrders2[selectedOrder.id]}
-                        >
-                          {loadingOrders2[selectedOrder.id] ? (
-                            <span className="material-symbols-outlined">downloading</span>
-                          ) : (
-                            <span className="material-symbols-outlined">download</span>
-                          )}
-                        </button>
-
-                        {/* Mini download progress text */}
-                        {downloadProgress[selectedOrder.id] && (
-                          <div className="mt-1 text-xs text-white">
-                            Downloading {downloadProgress[selectedOrder.id].current} / {downloadProgress[selectedOrder.id].total}
-                          </div>
-                        )}
-
-                        {/* Process & Upload images */}
-                        <button
-                          className={`relative p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 ${loadingOrders[selectedOrder.id]
-                            ? "text-gray-500 cursor-not-allowed"
-                            : "text-green-500 hover:text-green-600"
-                            } transition`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleProcessAndUploadImages(selectedOrder);
-                          }}
-                          disabled={loadingOrders[selectedOrder.id]}
-                        >
-                          {loadingOrders[selectedOrder.id] ? (
-                            <span className="material-symbols-outlined">
-                              arrow_upload_progress
-                            </span>
-                          ) : (
-                            <span className="material-symbols-outlined">cloud_upload</span>
-                          )}
-                        </button>
-
-                        {/* Copy Images JSON Button */}
-                        <button
-                          className={`p-1 pt-2 pr-2 pl-2 ${selectedOrder.metafields?.some(
-                            (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                          )
-                            ? "bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600"
-                            : "bg-gray-700 text-gray-500 opacity-50"
-                            } transition`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyStoryPhotosJSON(selectedOrder);
-                          }}
-                          disabled={
-                            !selectedOrder.metafields?.some(
-                              (mf) => mf.namespace === "custom" && mf.key === "story-photos"
-                            )
-                          }
-                        >
-                          <span className="material-symbols-outlined">photo_library</span>
-                        </button>
-
-                        {/* Copy Password & Open Subdomain */}
-                        <button
-                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopyPasswordAndOpenSubdomain(selectedOrder);
-                          }}
-                        >
-                          <span className="material-symbols-outlined">link</span>
-                        </button>
-
-                        <button
-                          className="hidden md:block p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCopySubdomainAndOpenLocalhost(selectedOrder);
-                          }}
-                          title="Open Subdomain in Localhost"
-                          aria-label="Open Subdomain in Localhost"
-                        >
-                          <span className="material-symbols-outlined">dns</span>
-                        </button>
-
-                        <div className="w-full"></div>
-
-                        {/* Duplicate Draft Order */}
-                        <button
-                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDuplicateDraftOrder(selectedOrder);
-                          }}
-                        >
-                          <span className="material-symbols-outlined">move_group</span>
-                        </button>
-
-                        {/* Create Direct Order Button */}
-                        <button
-                          className="p-1 pt-2 pr-2 pl-2 bg-gray-700 hover:bg-gray-900 text-white-500 hover:text-white-600 transition"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCreateDirectOrder(selectedOrder);
-                          }}
-                        >
-                          <span className="material-symbols-outlined">add_shopping_cart</span>
-                        </button>
-
-                        {/* Add Custom Item */}
-                        <button
-                          className="p-1 pt-2 pr-2 pl-2 bg-green-700 hover:bg-green-900 text-white-500 hover:text-white-600 transition"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddCustomItem(selectedOrder);
-                          }}
-                        >
-                          <span className="material-symbols-outlined">add</span>
-                        </button>
-
-                      </div>
-
-                      <div className="flex flex-col items-start justify-start gap-2">
-                        {/* Example: Displaying Custom Items */}
-                        {selectedOrder.line_items
-                          .map(item => (
-                            <div key={item.id} className="flex items-center justify-start gap-2">
-                              <button
-                                className="p-1 pt-2 pr-2 pl-2 bg-red-700 hover:bg-red-900 text-white-500 hover:text-white-600 transition"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveCustomItem(selectedOrder, item.id);
-                                }}
-                                title="Remove Custom Item"
-                                aria-label="Remove Custom Item"
-                              >
-                                <span className="material-symbols-outlined">remove</span>
-                              </button>
-                              <span>{item.title} - ${item.price}</span>
-                            </div>
-                          ))}
-                      </div>
-
+                    {/* Action Buttons - grouped logically */}
+                    <div className="hidden md:flex flex-wrap gap-1.5">
+                      {/* Story & Data */}
+                      <button onClick={(e) => { e.stopPropagation(); handleCopyProperties(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Copy Properties"><span className="material-symbols-outlined text-[22px]">content_copy</span></button>
+                      <button className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders2[selectedOrder.id] ? "text-gray-500 cursor-not-allowed" : "text-blue-400 hover:text-blue-300"}`} onClick={(e) => { e.stopPropagation(); handleDownloadImagesAsZip(selectedOrder); }} disabled={loadingOrders2[selectedOrder.id]} title="Download ZIP">{loadingOrders2[selectedOrder.id] ? <span className="material-symbols-outlined text-[22px]">downloading</span> : <span className="material-symbols-outlined text-[22px]">download</span>}</button>
+                      <button className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[selectedOrder.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`} onClick={(e) => { e.stopPropagation(); handleProcessAndUploadImages(selectedOrder); }} disabled={loadingOrders[selectedOrder.id]} title="Upload Images">{loadingOrders[selectedOrder.id] ? <span className="material-symbols-outlined text-[22px]">arrow_upload_progress</span> : <span className="material-symbols-outlined text-[22px]">cloud_upload</span>}</button>
+                      <button className={`flex items-center justify-center w-10 h-10 rounded transition ${selectedOrder.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-photos") ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-700 text-gray-500 opacity-50"}`} onClick={(e) => { e.stopPropagation(); handleCopyStoryPhotosJSON(selectedOrder); }} disabled={!selectedOrder.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-photos")} title="Copy Images JSON"><span className="material-symbols-outlined text-[22px]">photo_library</span></button>
+                      <div className="w-px h-10 bg-gray-600 mx-0.5"></div>
+                      {/* Links */}
+                      <button onClick={(e) => { e.stopPropagation(); handleCopyPasswordAndOpenSubdomain(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Open Story"><span className="material-symbols-outlined text-[22px]">language</span></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleCopySubdomainAndOpenLocalhost(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Open Localhost"><span className="material-symbols-outlined text-[22px]">dns</span></button>
+                      <div className="w-px h-10 bg-gray-600 mx-0.5"></div>
+                      {/* Order Management */}
+                      <button onClick={(e) => { e.stopPropagation(); handleDuplicateDraftOrder(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Duplicate Draft"><span className="material-symbols-outlined text-[22px]">move_group</span></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleCreateDirectOrder(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Create Order"><span className="material-symbols-outlined text-[22px]">add_shopping_cart</span></button>
+                      <button onClick={(e) => { e.stopPropagation(); handleAddCustomItem(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-green-700 hover:bg-green-600 text-white transition" title="Add Item"><span className="material-symbols-outlined text-[22px]">add</span></button>
                     </div>
 
+                    {/* Progress indicators */}
+                    {downloadProgress[selectedOrder.id] && <div className="text-xs text-gray-300">Downloading {downloadProgress[selectedOrder.id].current}/{downloadProgress[selectedOrder.id].total}</div>}
+
+                    {/* Line Items */}
+                    <div className="flex flex-col gap-1">
+                      {selectedOrder.line_items.map(item => (
+                        <div key={item.id} className="flex items-center gap-2 text-sm">
+                          <button onClick={(e) => { e.stopPropagation(); handleRemoveCustomItem(selectedOrder, item.id); }} className="flex items-center justify-center w-6 h-6 rounded bg-red-700 hover:bg-red-600 text-white transition" title="Remove"><span className="material-symbols-outlined text-[14px]">remove</span></button>
+                          <span>{item.title} - ${item.price}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Original View Image */}
+                    {selectedOrder.line_items[0].properties.filter((prop) => ["_original_view_2"].includes(prop.name)).map((prop, index) => !!prop.value ? (
+                      <Image key={`original-view-${index}`} src={prop.value} alt={prop.value} width={200} height={200} className="rounded m-auto w-auto h-auto" />
+                    ) : null)}
+
+                    {/* Order Properties List */}
+                    <div className="text-center font-bold bg-black text-white p-2 rounded text-sm">ORDER PROPERTIES</div>
                     {selectedOrder && selectedOrder.line_items[0].properties
                       .filter(
                         (prop) =>
@@ -3391,6 +2523,25 @@ const OrdersPage = () => {
                         );
                       })}
                   </div>
+
+                  {/* Mobile Fixed Footer - Subdomain + NFC */}
+                  <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-gray-700 p-3 border-t border-gray-400 shadow-lg">
+                    <div className="flex flex-row gap-2">
+                      <div className="flex-1">
+                        <div className="p-2.5 rounded bg-gray-800 text-white text-sm font-medium truncate border border-gray-500">{subdomainValue(selectedOrder)}</div>
+                      </div>
+                      <button
+                        className="p-2.5 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md flex items-center justify-center gap-1.5 flex-1 border-gray-500 border"
+                        onClick={(e) => { e.stopPropagation(); setIsSubdomainCheckOpen(true); }}
+                        title="Write URL to NFC Tag"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">nfc</span>
+                        <span className="font-medium text-sm">Prepare NFC</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="md:hidden h-16 mb-2"></div>
+
                 </div>
               </div>
               )}

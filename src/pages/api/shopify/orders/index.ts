@@ -22,6 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             processedAt
             email
             phone
+            note
             currencyCode
             totalPriceSet {
               shopMoney {
