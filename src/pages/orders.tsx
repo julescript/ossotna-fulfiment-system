@@ -89,7 +89,7 @@ const OrdersPage = () => {
 
   const printablesStatusOptions = ["Pending", "Review", "Printing", "Ready"];
   const storyStageOptions = ["Pending", "Waiting", "Review", "Live"];
-  const fulfillmentStatusOptions = ["New Order", "Ready For Delivery", "Sent For Delivery"];
+  const fulfillmentStatusOptions = ["New Order", "Ready For Delivery", "Sent For Delivery", "Delivered"];
 
   const getMetafieldValue = (order, key) => {
     return order.metafields?.find((mf) => mf.namespace === "custom" && mf.key === key)?.value;
@@ -257,14 +257,14 @@ const OrdersPage = () => {
     }
   };
 
-  // Show confirmation before fulfilling order
-  const handleFulfillOrder = (order) => {
+  // Show confirmation before marking as delivered
+  const handleMarkDelivered = (order) => {
     if (!order) return;
     setOrderToFulfill(order);
     setShowFulfillConfirmation(true);
   };
 
-  // Actually fulfill the order after confirmation
+  // Mark order as paid + update fulfillment status to "Delivered"
   const confirmFulfillOrder = async () => {
     if (!orderToFulfill) return;
 
@@ -272,46 +272,31 @@ const OrdersPage = () => {
       setIsFulfilling(true);
       setShowFulfillConfirmation(false);
 
+      // Mark as paid in Shopify
       const response = await fetch('/api/shopify/fulfillment', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: orderToFulfill.id
+          orderId: orderToFulfill.id,
+          action: 'markPaid'
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        if (data.warning) {
-          // Order was fulfilled but not marked as paid
-          console.warn('Warning from API:', data.warning, data.details);
-
-          // Check if it's the common "already paid" error
-          const alreadyPaidMessage = data.details?.some(error =>
-            error.message && error.message.toLowerCase().includes('already paid'));
-
-          if (alreadyPaidMessage) {
-            toast.success('Order marked as fulfilled (was already paid)');
-          } else {
-            toast.warning(`Order marked as fulfilled but not paid: ${data.details?.[0]?.message || data.warning}`);
-          }
-        } else if (data.message && data.message.includes('already fulfilled and paid')) {
-          toast.info('Order was already fulfilled and paid');
-        } else {
-          toast.success('Order marked as fulfilled and paid');
-        }
-        // Refresh orders after fulfillment
+        toast.success('Order marked as delivered & paid!');
+        // Update local fulfillment status to "Delivered"
+        handleFulfillmentStatusChange(orderToFulfill.id, "Delivered");
+        // Refresh orders
         fetchOrders(limit);
       } else {
-        toast.error(`Failed to fulfill order: ${data.error || 'Unknown error'}`);
-        console.error('Fulfillment error details:', data.details || 'No details provided');
+        toast.error(`Failed to mark as paid: ${data.error || 'Unknown error'}`);
+        console.error('Mark paid error:', data.details || 'No details');
       }
     } catch (error) {
-      console.error('Error fulfilling order:', error);
-      toast.error('Error fulfilling order');
+      console.error('Error marking order as delivered:', error);
+      toast.error('Error marking order as delivered');
     } finally {
       setIsFulfilling(false);
     }
@@ -1170,6 +1155,25 @@ const OrdersPage = () => {
     try {
       await saveMetafieldAPI(orderId, "fulfillment-status", "single_line_text_field", newStatus);
       toast.success("Fulfillment status updated successfully!", { autoClose: 2000 });
+
+      // When set to "Ready For Delivery", auto-trigger Shopify fulfillment (no email, no tracking)
+      if (newStatus === "Ready For Delivery") {
+        try {
+          const response = await fetch('/api/shopify/fulfillment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId, action: 'fulfill' }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            toast.info("Order marked as fulfilled in Shopify (no notification sent)", { autoClose: 3000 });
+          } else {
+            console.warn("Shopify fulfillment warning:", data.error);
+          }
+        } catch (err) {
+          console.error("Error auto-fulfilling in Shopify:", err);
+        }
+      }
     } catch (error) {
       console.error("Error updating fulfillment status:", error);
       toast.error("Failed to update fulfillment status!", { autoClose: 2000 });
@@ -2222,8 +2226,8 @@ const OrdersPage = () => {
                       <button onClick={(e) => { e.stopPropagation(); handleSendDeliveryMessage(selectedOrder); }} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md text-sm font-medium transition">
                         <span className="material-symbols-outlined text-[18px]">chat</span>Delivery Message
                       </button>
-                      <button onClick={(e) => { e.stopPropagation(); handleFulfillOrder(selectedOrder); }} disabled={isFulfilling} className="flex items-center gap-2 px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-md text-sm font-medium transition disabled:opacity-50">
-                        <span className="material-symbols-outlined text-[18px]">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>{isFulfilling ? 'Processing...' : 'Mark Fulfilled'}
+                      <button onClick={(e) => { e.stopPropagation(); handleMarkDelivered(selectedOrder); }} disabled={isFulfilling} className="flex items-center gap-2 px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white rounded-md text-sm font-medium transition disabled:opacity-50">
+                        <span className="material-symbols-outlined text-[18px]">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>{isFulfilling ? 'Processing...' : 'Delivered'}
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); handleOpenShopifyOrderPage(selectedOrder); }} className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-600 text-white rounded-md text-sm font-medium transition">
                         <span className="material-symbols-outlined text-[18px]">shoppingmode</span>Shopify
@@ -2245,11 +2249,11 @@ const OrdersPage = () => {
                     </button>
                     <button
                       className="p-3 bg-green-600 hover:bg-green-700 text-white rounded-md flex items-center justify-center gap-2 flex-1 border-gray-500 border"
-                      onClick={(e) => { e.stopPropagation(); handleFulfillOrder(selectedOrder); }}
+                      onClick={(e) => { e.stopPropagation(); handleMarkDelivered(selectedOrder); }}
                       disabled={isFulfilling}
                     >
                       <span className="material-symbols-outlined text-[20px]">{isFulfilling ? 'hourglass_top' : 'check_circle'}</span>
-                      <span className="font-medium text-sm">{isFulfilling ? '...' : 'Fulfill'}</span>
+                      <span className="font-medium text-sm">{isFulfilling ? '...' : 'Delivered'}</span>
                     </button>
                   </div>
                 </div>
@@ -2828,10 +2832,10 @@ const OrdersPage = () => {
       {showFulfillConfirmation && orderToFulfill && (
         <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Confirm Order Fulfillment</h3>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Confirm Delivery</h3>
 
             <div className="mb-6 text-gray-700 dark:text-gray-300">
-              <p className="mb-4">Are you sure you want to mark this order as fulfilled and paid?</p>
+              <p className="mb-4">Are you sure you want to mark this order as delivered & paid?</p>
 
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-4">
                 <p className="font-medium mb-2">Order Details:</p>

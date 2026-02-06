@@ -135,7 +135,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
   setActiveModalTab,
   setIsModalOpen,
 }) => {
-  const GRID_COLS = "grid-cols-[1fr] md:grid-cols-[1.2fr_1.5fr_1.5fr_1.5fr_1fr_1fr_1fr_3fr_0.8fr]";
+  const GRID_COLS = "grid-cols-[1fr] md:grid-cols-[1.2fr_1.5fr_1.5fr_1.5fr_1.5fr_1.5fr_1.5fr_3fr_0.8fr]";
 
   return (
     <div className={`h-full w-full md:pb-0 pb-44 ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
