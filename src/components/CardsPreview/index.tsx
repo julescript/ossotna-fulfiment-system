@@ -2,6 +2,7 @@ import React, { useState, useEffect, useImperativeHandle, forwardRef } from "rea
 import { PDFDocument, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import opentype from "opentype.js";
+import ArabicReshaper from "arabic-reshaper";
 import { toast } from "react-toastify";
 import { Document, Page, pdfjs } from "react-pdf";
 import { processQrCodeSvg } from "@/utils/orderUtils";
@@ -71,6 +72,47 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [imageData, setImageData] = useState(null);
 
+  // Helper: detect if text contains Arabic characters
+  const isArabic = (text) => /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text);
+
+  // Helper: reshape Arabic text for correct rendering
+  const reshapeArabic = (text) => {
+    try {
+      const reshaped = ArabicReshaper.convertArabic(text);
+      // Return reshaped text as-is; pdf-lib with embedded font handles rendering
+      return reshaped;
+    } catch (e) {
+      console.error('Arabic reshaping failed:', e);
+      return text;
+    }
+  };
+
+  // Helper: wrap text for pdf-lib embedded fonts (uses widthOfTextAtSize)
+  const wrapTextEmbedded = (text, font, fontSize, maxWidth) => {
+    const paragraphs = text.split('\n');
+    let lines = [];
+    for (let paragraph of paragraphs) {
+      const words = paragraph.split(" ");
+      let currentLine = "";
+      if (words.length === 1 && words[0] === "") {
+        lines.push("");
+        continue;
+      }
+      for (let word of words) {
+        const testLine = currentLine ? currentLine + " " + word : word;
+        const testLineWidth = font.widthOfTextAtSize(testLine, fontSize);
+        if (testLineWidth > maxWidth && currentLine !== "") {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+    }
+    return lines;
+  };
+
   // Helper: wrap text into lines that do not exceed maxWidth
   const wrapText = (text, font, fontSize, maxWidth) => {
     // First split by explicit line breaks
@@ -135,6 +177,22 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const vollkornItalic = await opentype.load("/Vollkorn-Italic.ttf");
       const notoSansMono = await opentype.load("/NotoSansMono-Bold.ttf");
 
+      // Load Arabic fonts via pdf-lib (embedded) for reliable Arabic rendering.
+      const needsArabic = isArabic(title) || isArabic(milestoneDate) || isArabic(dedicationLine);
+      let arabicBoldFont = null;
+      let arabicRegularFont = null;
+      if (needsArabic) {
+        try {
+          const arabicBoldBytes = await fetch("/Noto_Kufi_Arabic/NotoKufiArabic-Bold.ttf").then(r => r.arrayBuffer());
+          const arabicRegularBytes = await fetch("/Noto_Kufi_Arabic/NotoKufiArabic-Regular.ttf").then(r => r.arrayBuffer());
+          arabicBoldFont = await pdfDoc.embedFont(arabicBoldBytes);
+          arabicRegularFont = await pdfDoc.embedFont(arabicRegularBytes);
+          console.log("Arabic fonts loaded successfully");
+        } catch (e) {
+          console.error("Failed to load Arabic fonts:", e);
+        }
+      }
+
       // Draw Left Card.
       page.drawRectangle({
         x: 0,
@@ -151,32 +209,63 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       });
 
       // Title.
-      const titleFontSize = 11.5;
+      const titleIsArabic = isArabic(title) && arabicBoldFont;
+      const titleFontSize = titleIsArabic ? 11.5 : 11.5;
       const maxTitleWidth = (2 / 3) * CARD_WIDTH;
-      const titleLines = wrapText(title, vollkornBold, titleFontSize, maxTitleWidth);
-      const lineHeight = titleFontSize * 1.2;
-      const totalTitleHeight = titleLines.length * lineHeight;
-      let currentY = (CARD_HEIGHT + totalTitleHeight) / 2 - 10;
-      titleLines.forEach((line) => {
-        const lineWidth = vollkornBold.getAdvanceWidth(line, titleFontSize);
-        const lineX = (CARD_WIDTH - lineWidth) / 2;
-        drawTextAsVector(page, vollkornBold, line, lineX, currentY, titleFontSize, rgb(0.98, 0.98, 0.98));
-        currentY -= lineHeight;
-      });
+      if (titleIsArabic) {
+        const titleText = reshapeArabic(title);
+        const titleLines = wrapTextEmbedded(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
+        const lineHeight = titleFontSize * 1.4;
+        const totalTitleHeight = titleLines.length * lineHeight;
+        let currentY = (CARD_HEIGHT - totalTitleHeight) / 2 + totalTitleHeight - 10;
+        titleLines.forEach((line) => {
+          const lineWidth = arabicBoldFont.widthOfTextAtSize(line, titleFontSize);
+          const lineX = (CARD_WIDTH - lineWidth) / 2;
+          page.drawText(line, { x: lineX, y: currentY, size: titleFontSize, font: arabicBoldFont, color: rgb(0.98, 0.98, 0.98) });
+          currentY -= lineHeight;
+        });
+      } else {
+        const titleLines = wrapText(title, vollkornBold, titleFontSize, maxTitleWidth);
+        const lineHeight = titleFontSize * 1.2;
+        const totalTitleHeight = titleLines.length * lineHeight;
+        let currentY = (CARD_HEIGHT + totalTitleHeight) / 2 - 10;
+        titleLines.forEach((line) => {
+          const lineWidth = vollkornBold.getAdvanceWidth(line, titleFontSize);
+          const lineX = (CARD_WIDTH - lineWidth) / 2;
+          drawTextAsVector(page, vollkornBold, line, lineX, currentY, titleFontSize, rgb(0.98, 0.98, 0.98));
+          currentY -= lineHeight;
+        });
+      }
 
       // Milestone Date.
-      const milestoneFontSize = 8.5;
-      const milestoneWidth = vollkornRegular.getAdvanceWidth(milestoneDate, milestoneFontSize);
-      const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
+      const dateIsArabic = isArabic(milestoneDate) && arabicRegularFont;
+      const milestoneFontSize = dateIsArabic ? 8.5 : 8.5;
       const milestoneY = CARD_HEIGHT - 33.5;
-      drawTextAsVector(page, vollkornRegular, milestoneDate, milestoneX, milestoneY, milestoneFontSize, rgb(0.98, 0.98, 0.98));
+      if (dateIsArabic) {
+        const dateText = reshapeArabic(milestoneDate);
+        const milestoneWidth = arabicRegularFont.widthOfTextAtSize(dateText, milestoneFontSize);
+        const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
+        page.drawText(dateText, { x: milestoneX, y: milestoneY, size: milestoneFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
+      } else {
+        const milestoneWidth = vollkornRegular.getAdvanceWidth(milestoneDate, milestoneFontSize);
+        const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
+        drawTextAsVector(page, vollkornRegular, milestoneDate, milestoneX, milestoneY, milestoneFontSize, rgb(0.98, 0.98, 0.98));
+      }
 
       // Dedication.
-      const dedicationFontSize = 8.5;
-      const dedicationWidth = vollkornItalic.getAdvanceWidth(dedicationLine, dedicationFontSize);
-      const dedicationX = (CARD_WIDTH - dedicationWidth) / 2;
+      const dedicationIsArabic = isArabic(dedicationLine) && arabicRegularFont;
+      const dedicationFontSize = dedicationIsArabic ? 8.5 : 8.5;
       const dedicationY = 28;
-      drawTextAsVector(page, vollkornItalic, dedicationLine, dedicationX, dedicationY, dedicationFontSize, rgb(0.98, 0.98, 0.98));
+      if (dedicationIsArabic) {
+        const dedicationText = reshapeArabic(dedicationLine);
+        const dedicationWidth = arabicRegularFont.widthOfTextAtSize(dedicationText, dedicationFontSize);
+        const dedicationX = (CARD_WIDTH - dedicationWidth) / 2;
+        page.drawText(dedicationText, { x: dedicationX, y: dedicationY, size: dedicationFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
+      } else {
+        const dedicationWidth = vollkornItalic.getAdvanceWidth(dedicationLine, dedicationFontSize);
+        const dedicationX = (CARD_WIDTH - dedicationWidth) / 2;
+        drawTextAsVector(page, vollkornItalic, dedicationLine, dedicationX, dedicationY, dedicationFontSize, rgb(0.98, 0.98, 0.98));
+      }
 
       // Draw Right Card.
       page.drawRectangle({
