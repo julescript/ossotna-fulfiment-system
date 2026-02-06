@@ -62,7 +62,7 @@ const OrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImageUploadModalOpen, setIsImageUploadModalOpen] = useState(false);
-  const [isStoryModalOpen, setIsStoryModalOpen] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState("details"); // "details" | "story" | "images"
   const [clipboardContent, setClipboardContent] = useState("");
   const [generatedStory, setGeneratedStory] = useState("");
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
@@ -156,6 +156,7 @@ const OrdersPage = () => {
 
   const handleOpenModal = (order) => {
     setSelectedOrder(order);
+    setActiveModalTab("details");
     setIsModalOpen(true);
   };
 
@@ -2226,7 +2227,9 @@ const OrdersPage = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleCopyProperties(order);
-                                setIsStoryModalOpen(true);
+                                setSelectedOrder(order);
+                                setActiveModalTab("story");
+                                setIsModalOpen(true);
                               }}
                               title="Generate Story"
                               aria-label="Generate Story"
@@ -2373,122 +2376,6 @@ const OrdersPage = () => {
           onClose={() => setIsImageUploadModalOpen(false)}
         />
 
-        {/* Story Generation Modal */}
-        {isStoryModalOpen && selectedOrder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 w-11/12 max-w-7xl max-h-[95vh] overflow-hidden flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-bold dark:text-white">{selectedOrder.name} | Generate Story</h2>
-                  <button
-                    className="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition-colors"
-                    onClick={() => {
-                      setIsModalOpen(true);
-                    }}
-                  >
-                    View Order Details
-                  </button>
-                </div>
-                <button
-                  onClick={() => {
-                    setIsStoryModalOpen(false);
-                    setGeneratedStory("");
-                  }}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white"
-                >
-                  <span className="material-symbols-outlined">close</span>
-                </button>
-              </div>
-
-              <div className="flex flex-col md:flex-row gap-4 flex-grow overflow-hidden">
-                {/* Left side - Clipboard Content */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <h6 className="text-sm font-light mb-2 dark:text-white">Order Properties</h6>
-                  <div className="relative flex-grow">
-                    <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">markdown</div>
-                    <textarea
-                      className="w-full h-[600px] p-4 font-mono text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded resize-none"
-                      value={clipboardContent}
-                      onChange={(e) => setClipboardContent(e.target.value)}
-                      readOnly={false}
-                      placeholder="# Order Properties\n\nPaste or edit order properties here..."
-                    ></textarea>
-                  </div>
-                </div>
-
-                {/* Right side - Generated Story */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  <h6 className="text-sm font-light mb-2 dark:text-white">Generated Story</h6>
-                  <div className="relative flex-grow">
-                    <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">typescript</div>
-                    {isGeneratingStory && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-70 z-30">
-                        <div className="flex flex-col items-center">
-                          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-2"></div>
-                          <span className="text-white">Generating story...</span>
-                        </div>
-                      </div>
-                    )}
-                    <textarea
-                      className="w-full h-[600px] p-4 font-mono text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded resize-none"
-                      value={generatedStory}
-                      onChange={(e) => setGeneratedStory(e.target.value)}
-                      readOnly={false}
-                      placeholder="// Generated TypeScript will appear here..."
-                    ></textarea>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end mt-4 gap-2">
-                <button
-                  onClick={() => {
-                    setIsGeneratingStory(true);
-                    // Call the OpenAI assistant API
-                    fetch('/api/generate-story', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        assistantId: 'asst_ndvTXfavraW5WZsIsr7Sj7BB',
-                        content: clipboardContent
-                      }),
-                    })
-                      .then(response => response.json())
-                      .then(data => {
-                        setGeneratedStory(data.story || 'Failed to generate story');
-                        setIsGeneratingStory(false);
-                      })
-                      .catch(error => {
-                        console.error('Error generating story:', error);
-                        setGeneratedStory('Error: ' + error.message);
-                        setIsGeneratingStory(false);
-                        toast.error('Failed to generate story');
-                      });
-                  }}
-                  disabled={isGeneratingStory}
-                  className={`px-4 py-2 rounded ${isGeneratingStory ? 'bg-gray-500' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
-                >
-                  {isGeneratingStory ? 'Generating...' : 'Generate Story'}
-                </button>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedStory).then(
-                      () => toast.success('Story copied to clipboard', { autoClose: 2000 }),
-                      () => toast.error('Failed to copy story', { autoClose: 2000 })
-                    );
-                  }}
-                  disabled={!generatedStory}
-                  className={`px-4 py-2 rounded ${!generatedStory ? 'bg-gray-500' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
-                >
-                  Copy Story
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         <ToastContainer />
       </div>
       {isModalOpen && selectedOrder && (
@@ -2516,18 +2403,22 @@ const OrdersPage = () => {
               {/* HEADER (fixed within the modal: use "sticky" or "shrink-0") */}
               <div className="block md:sticky top-0 p-4 md:p-6 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 z-10 flex flex-col md:flex-row md:items-center md:justify-between relative">
                 <div className="flex flex-col flex-1 pr-10">
-                  <h2 className="text-xl font-bold mb-2">{selectedOrder.name}</h2>
-                  <div className="flex items-center gap-3">
-                    <button
-                      className="px-3 py-1 bg-purple-500 text-white rounded-md text-sm hover:bg-purple-600 transition-colors"
-                      onClick={() => {
-                        setIsStoryModalOpen(true);
-                      }}
-                    >
-                      Generate Story
-                    </button>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">{selectedOrder.line_items[0].variant_title}</span>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold">{selectedOrder.name}</h2>
+                    {(() => {
+                      const storyType = selectedOrder.line_items[0].properties.find(p => p.name === "story-type")?.value || "Standard";
+                      let bgColor = "bg-gray-600";
+                      if (storyType.toLowerCase() === "mother") bgColor = "bg-purple-600";
+                      else if (storyType.toLowerCase() === "love") bgColor = "bg-red-600";
+                      else if (storyType.toLowerCase() === "friendship") bgColor = "bg-blue-800";
+                      return (
+                        <span className={`px-2 py-0.5 ${bgColor} rounded text-white text-xs font-bold`}>
+                          {storyType.toUpperCase()}
+                        </span>
+                      );
+                    })()}
                   </div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{selectedOrder.line_items[0].variant_title}</span>
                 </div>
 
                 {/* Statuses */}
@@ -2591,7 +2482,37 @@ const OrdersPage = () => {
                 </button>
               </div>
 
-              {/* MAIN CONTENT: Adjusted for Responsiveness */}
+              {/* TAB BAR */}
+              <div className="flex border-b border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 md:px-6 shrink-0">
+                {[
+                  { key: "details", label: "Details", icon: "info" },
+                  { key: "story", label: "Story", icon: "auto_stories" },
+                  { key: "images", label: "Images", icon: "photo_library" },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => {
+                      if (tab.key === "story" && !clipboardContent && selectedOrder) {
+                        handleCopyProperties(selectedOrder);
+                      }
+                      setActiveModalTab(tab.key);
+                    }}
+                    className={`flex items-center gap-1 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                      activeModalTab === tab.key
+                        ? "border-blue-500 text-blue-500"
+                        : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* TAB CONTENT */}
+
+              {/* TAB 1: Details */}
+              {activeModalTab === "details" && (
               <div className="flex-1 overflow-hidden p-0">
                 <div className={`flex flex-col md:flex-row h-full overflow-hidden overflow-y-auto ${isMobile() ? "space-y-4" : "space-x-4"}`}>
 
@@ -3472,6 +3393,201 @@ const OrdersPage = () => {
                   </div>
                 </div>
               </div>
+              )}
+
+              {/* TAB 2: Story */}
+              {activeModalTab === "story" && (
+              <div className="flex-1 overflow-hidden p-0 flex flex-col">
+                <div className="flex flex-col md:flex-row gap-4 flex-1 p-4 md:p-6 overflow-hidden">
+                  {/* Left side - Clipboard Content */}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <h6 className="text-sm font-light mb-2 dark:text-white">Order Properties</h6>
+                    <div className="relative flex-grow">
+                      <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">markdown</div>
+                      <textarea
+                        className="w-full h-full min-h-[400px] p-4 font-mono text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded resize-none"
+                        value={clipboardContent}
+                        onChange={(e) => setClipboardContent(e.target.value)}
+                        readOnly={false}
+                        placeholder="# Order Properties&#10;&#10;Paste or edit order properties here..."
+                      ></textarea>
+                    </div>
+                  </div>
+
+                  {/* Right side - Generated Story */}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <h6 className="text-sm font-light mb-2 dark:text-white">Generated Story</h6>
+                    <div className="relative flex-grow">
+                      <div className="absolute top-0 right-0 bg-gray-200 dark:bg-gray-600 px-2 py-1 text-xs font-semibold rounded-bl z-10">typescript</div>
+                      {isGeneratingStory && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-800 bg-opacity-70 z-30">
+                          <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-2"></div>
+                            <span className="text-white">Generating story...</span>
+                          </div>
+                        </div>
+                      )}
+                      <textarea
+                        className="w-full h-full min-h-[400px] p-4 font-mono text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded resize-none"
+                        value={generatedStory}
+                        onChange={(e) => setGeneratedStory(e.target.value)}
+                        readOnly={false}
+                        placeholder="// Generated TypeScript will appear here..."
+                      ></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end px-4 md:px-6 pb-4 gap-2">
+                  <button
+                    onClick={() => {
+                      setIsGeneratingStory(true);
+                      fetch('/api/generate-story', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          assistantId: 'asst_ndvTXfavraW5WZsIsr7Sj7BB',
+                          content: clipboardContent
+                        }),
+                      })
+                        .then(response => response.json())
+                        .then(data => {
+                          setGeneratedStory(data.story || 'Failed to generate story');
+                          setIsGeneratingStory(false);
+                        })
+                        .catch(error => {
+                          console.error('Error generating story:', error);
+                          setGeneratedStory('Error: ' + error.message);
+                          setIsGeneratingStory(false);
+                          toast.error('Failed to generate story');
+                        });
+                    }}
+                    disabled={isGeneratingStory}
+                    className={`px-4 py-2 rounded ${isGeneratingStory ? 'bg-gray-500' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
+                  >
+                    {isGeneratingStory ? 'Generating...' : 'Generate Story'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedStory).then(
+                        () => toast.success('Story copied to clipboard', { autoClose: 2000 }),
+                        () => toast.error('Failed to copy story', { autoClose: 2000 })
+                      );
+                    }}
+                    disabled={!generatedStory}
+                    className={`px-4 py-2 rounded ${!generatedStory ? 'bg-gray-500' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+                  >
+                    Copy Story
+                  </button>
+                </div>
+              </div>
+              )}
+
+              {/* TAB 3: Images */}
+              {activeModalTab === "images" && (
+              <div className="flex-1 overflow-hidden p-0">
+                <div className="h-full overflow-y-auto p-4 md:p-6">
+                  {/* Existing Cloudinary Images */}
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Uploaded Images (story-photos)</h3>
+                    {(() => {
+                      const storyPhotosMetafield = selectedOrder.metafields?.find(
+                        (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                      );
+                      if (!storyPhotosMetafield) {
+                        return <p className="text-gray-400 text-sm">No images uploaded yet. Use "Process & Upload" from the Details tab or upload below.</p>;
+                      }
+                      try {
+                        const photoUrls = JSON.parse(storyPhotosMetafield.value);
+                        if (!Array.isArray(photoUrls) || photoUrls.length === 0) {
+                          return <p className="text-gray-400 text-sm">No images found in story-photos.</p>;
+                        }
+                        return (
+                          <div className="grid grid-cols-5 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                            {photoUrls.map((url, index) => (
+                              <div
+                                key={index}
+                                className="relative group cursor-pointer rounded overflow-hidden border border-gray-600 hover:border-blue-500 transition-colors"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(url).then(
+                                    () => toast.success(`Image ${index + 1} URL copied!`, { autoClose: 1500 }),
+                                    () => toast.error('Failed to copy URL')
+                                  );
+                                }}
+                                title="Click to copy image URL"
+                              >
+                                <img
+                                  src={url}
+                                  alt={`Photo ${index + 1}`}
+                                  className="w-full aspect-square object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 flex items-center justify-center transition-all">
+                                  <span className="material-symbols-outlined text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                    content_copy
+                                  </span>
+                                </div>
+                                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs text-center py-0.5">
+                                  {index + 1}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      } catch (e) {
+                        return <p className="text-red-400 text-sm">Error parsing story-photos JSON.</p>;
+                      }
+                    })()}
+
+                    {/* Copy All URLs button */}
+                    {selectedOrder.metafields?.some(
+                      (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                    ) && (
+                      <button
+                        onClick={() => handleCopyStoryPhotosJSON(selectedOrder)}
+                        className="mt-3 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-base">content_copy</span>
+                        Copy All URLs as JSON
+                      </button>
+                    )}
+                  </div>
+
+                  <hr className="border-gray-600 mb-6" />
+
+                  {/* Upload Additional Images */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Upload Additional Images</h3>
+                    <ImageUploadModal
+                      isOpen={true}
+                      onClose={() => {}}
+                      inline={true}
+                      orderName={selectedOrder.name}
+                      onUploadComplete={(newUrls) => {
+                        // Merge new URLs with existing story-photos and save
+                        const storyPhotosMetafield = selectedOrder.metafields?.find(
+                          (mf) => mf.namespace === "custom" && mf.key === "story-photos"
+                        );
+                        let existingUrls = [];
+                        if (storyPhotosMetafield) {
+                          try { existingUrls = JSON.parse(storyPhotosMetafield.value); } catch (e) {}
+                        }
+                        const mergedUrls = [...existingUrls, ...newUrls];
+                        saveMetafieldAPI(selectedOrder.id, "story-photos", "json_string", JSON.stringify(mergedUrls))
+                          .then(() => {
+                            toast.success('Images added to story-photos!');
+                            fetchOrders(limit);
+                          })
+                          .catch((err) => {
+                            console.error('Error saving merged photos:', err);
+                            toast.error('Failed to save images to metafield');
+                          });
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              )}
+
             </div>
           </div>
         </div>

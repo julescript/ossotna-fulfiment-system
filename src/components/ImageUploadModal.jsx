@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { toast } from 'react-toastify';
 
-const ImageUploadModal = ({ isOpen, onClose }) => {
-  const [folderName, setFolderName] = useState('');
+const ImageUploadModal = ({ isOpen, onClose, inline = false, orderName = '', onUploadComplete = null }) => {
+  const [folderName, setFolderName] = useState(orderName || '');
   const [files, setFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -221,6 +221,11 @@ const ImageUploadModal = ({ isOpen, onClose }) => {
       }
       
       toast.success(`${resizedImages.length} images processed and uploaded successfully!`);
+
+      // Call onUploadComplete callback if provided
+      if (onUploadComplete) {
+        onUploadComplete(photoUrls);
+      }
     } catch (error) {
       console.error('Error uploading images:', error);
       toast.error(`Failed to upload images: ${error.message}`);
@@ -250,15 +255,14 @@ const ImageUploadModal = ({ isOpen, onClose }) => {
     document.body.removeChild(link);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !inline) return null;
   
   // Debug output
   console.log('Current state:', { folderName, files, isUploading, filesLength: files.length });
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-700 rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
-        <div className="p-6">
+  const content = (
+        <div>
+          {!inline && (
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-white">Upload Images</h2>
             <button 
@@ -268,6 +272,7 @@ const ImageUploadModal = ({ isOpen, onClose }) => {
               <span className="material-symbols-outlined text-lg">close</span>
             </button>
           </div>
+          )}
 
           <div className="mb-6">
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -416,6 +421,18 @@ const ImageUploadModal = ({ isOpen, onClose }) => {
               </div>
             </div>
           )}
+        </div>
+  );
+
+  if (inline) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4">
+      <div className="bg-gray-700 rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
+        <div className="p-6">
+          {content}
         </div>
       </div>
     </div>
