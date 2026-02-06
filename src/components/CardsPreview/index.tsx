@@ -421,9 +421,7 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
     handlePrint
   }));
 
-  useEffect(() => {
-    generatePDF();
-  }, []);
+  // PDF generation is manual — click the Generate button
 
   return (
     <div className="p-4 w-full display-flex justify-center align-center">
