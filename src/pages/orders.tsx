@@ -201,7 +201,8 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     setIsSubdomainCheckOpen(false);
 
     setSelectedOrder(order);
-    setActiveModalTab(isMobile() ? "delivery" : "details");
+    const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') : null;
+    setActiveModalTab(isMobile() && userRole === 'delivery' ? "delivery" : "details");
     setClipboardContent("");
     setGeneratedStory("");
     setIsModalOpen(true);

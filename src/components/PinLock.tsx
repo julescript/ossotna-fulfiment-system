@@ -45,10 +45,11 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
       const data = await response.json();
 
       if (response.ok) {
-        // Store the token in localStorage
+        // Store the token and role in localStorage
         localStorage.setItem('pinSessionToken', data.token);
         localStorage.setItem('pinSessionExpiresAt', data.expiresAt);
         localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('userRole', data.role || 'admin');
 
         if (onPinVerified) {
           onPinVerified();
@@ -94,10 +95,11 @@ const PinLock: React.FC<PinLockProps> = ({ onPinVerified, redirectPath = '/order
             router.push(redirectPath);
           }
         } else {
-          // Session expired, clear token
+          // Session expired, clear token and role
           localStorage.removeItem('pinSessionToken');
           localStorage.removeItem('pinSessionExpiresAt');
           localStorage.removeItem('isAuthenticated');
+          localStorage.removeItem('userRole');
         }
       }
     };

@@ -65,15 +65,23 @@ export default function handler(
     return res.status(400).json({ error: 'PIN is required' });
   }
 
-  // Get the correct PIN from environment variables
-  const correctPin = process.env.PIN_LOCK;
+  // Get PINs from environment variables
+  const adminPin = process.env.PIN_LOCK;
+  const deliveryPin = process.env.PIN_LOCK_DELIVERY;
 
-  if (!correctPin) {
+  if (!adminPin && !deliveryPin) {
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  // Verify the PIN
-  if (pin === correctPin) {
+  // Determine which PIN matched and assign role
+  let role: string | null = null;
+  if (adminPin && pin === adminPin) {
+    role = 'admin';
+  } else if (deliveryPin && pin === deliveryPin) {
+    role = 'delivery';
+  }
+
+  if (role) {
     // Generate a token
     const token = uuidv4();
     
@@ -84,6 +92,7 @@ export default function handler(
     return res.status(200).json({
       success: true,
       token,
+      role,
       expiresAt: expiresAt.toISOString(),
     });
   } else {

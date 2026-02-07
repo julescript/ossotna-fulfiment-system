@@ -32,10 +32,11 @@ export default function App({ Component, pageProps }: AppProps) {
               router.push('/orders');
             }
           } else {
-            // Session expired, clear token
+            // Session expired, clear token and role
             localStorage.removeItem('pinSessionToken');
             localStorage.removeItem('pinSessionExpiresAt');
             localStorage.removeItem('isAuthenticated');
+            localStorage.removeItem('userRole');
             setIsAuthenticated(false);
           }
         } else {
