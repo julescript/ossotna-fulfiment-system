@@ -69,14 +69,24 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
   const [isNfcWriteModalOpen, setIsNfcWriteModalOpen] = useState(false);
   const [nfcUrl, setNfcUrl] = useState("");
-  const [isNfcWriting, setIsNfcWriting] = useState(false);
-  const [isNfcVerifying, setIsNfcVerifying] = useState(false);
+  // NFC step: "idle" | "writing" | "waitingVerify" | "verifying" | "done"
+  const [nfcStep, setNfcStep] = useState<"idle" | "writing" | "waitingVerify" | "verifying" | "done">("idle");
   const [nfcWriteAttempts, setNfcWriteAttempts] = useState(0);
   const [showFulfillConfirmation, setShowFulfillConfirmation] = useState(false);
   const [orderToFulfill, setOrderToFulfill] = useState(null);
   const [lastReadUrl, setLastReadUrl] = useState("");
-  const [showDoneButton, setShowDoneButton] = useState(false);
-  const [verificationCompleted, setVerificationCompleted] = useState(false);
+  const [nfcVerifyMatch, setNfcVerifyMatch] = useState<boolean | null>(null);
+  const nfcAbortRef = useRef<AbortController | null>(null);
+  const nfcUrlRef = useRef(nfcUrl);
+  // Keep nfcUrlRef in sync
+  useEffect(() => { nfcUrlRef.current = nfcUrl; }, [nfcUrl]);
+  // Cleanup NFC on unmount
+  useEffect(() => {
+    return () => {
+      nfcAbortRef.current?.abort();
+      nfcAbortRef.current = null;
+    };
+  }, []);
   const [isDeliveryScanOpen, setIsDeliveryScanOpen] = useState(false);
   const [currentScanOrder, setCurrentScanOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
@@ -180,6 +190,16 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   }
 
   const handleOpenModal = (order) => {
+    // Abort any in-progress NFC operations from previous order
+    nfcAbortRef.current?.abort();
+    nfcAbortRef.current = null;
+    setNfcStep("idle");
+    setNfcWriteAttempts(0);
+    setLastReadUrl("");
+    setNfcVerifyMatch(null);
+    setIsNfcWriteModalOpen(false);
+    setIsSubdomainCheckOpen(false);
+
     setSelectedOrder(order);
     setActiveModalTab(isMobile() ? "delivery" : "details");
     setClipboardContent("");
@@ -874,9 +894,10 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
         // For mobile, open the NFC write modal with the complete URL
         console.log("Setting NFC URL from handleCopySubdomainOpenNFC:", fullUrl);
         setNfcUrl(fullUrl);
-        setNfcWriteAttempts(0); // Reset attempt counter when opening modal
-        setIsNfcVerifying(false); // Reset verification state
-        setVerificationCompleted(false); // Reset verification completed flag
+        setNfcWriteAttempts(0);
+        setNfcStep("idle");
+        setLastReadUrl("");
+        setNfcVerifyMatch(null);
         setIsNfcWriteModalOpen(true);
       } else {
         // For desktop, just copy to clipboard (domain only, no protocol)
@@ -1647,18 +1668,28 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
         console.log(`Current Subdomain: ${currentSubdomain}`);
 
         if (scannedSubdomain.toLowerCase() === currentSubdomain.toLowerCase()) {
-          toast.success("Subdomain matches!", { autoClose: 2000 });
+          toast.success("Subdomain matches!");
           // Close the scanner modal and open NFC modal
           setIsSubdomainCheckOpen(false);
-          setIsScannerPaused(false); // Reset for next time
+          setIsScannerPaused(false);
           // Open NFC modal with the current subdomain
           const fullUrl = `https://${currentSubdomain}.ossotna.com`;
           setNfcUrl(fullUrl);
           console.log("Setting NFC URL to:", fullUrl);
-          setNfcWriteAttempts(0); // Reset attempt counter when opening from QR scan
-          setIsNfcVerifying(false); // Reset verification state
-          setVerificationCompleted(false); // Reset verification completed flag
+          setNfcWriteAttempts(0);
+          setNfcStep("idle");
+          setLastReadUrl("");
+          setNfcVerifyMatch(null);
           setIsNfcWriteModalOpen(true);
+          // Update printables status to Ready on successful QR verification
+          if (selectedOrder?.id) {
+            saveMetafieldAPI(selectedOrder.id, "printables-status", "single_line_text_field", "Ready")
+              .then(() => {
+                setPrintablesStatuses((prev) => ({ ...prev, [selectedOrder.id]: "Ready" }));
+                console.log("Printables status set to Ready after QR verification");
+              })
+              .catch((err) => console.error("Failed to update printables status:", err));
+          }
         } else {
           toast.error("Subdomain does not match.", { autoClose: 2000 });
           // Keep scanner paused until user clicks Scan Again
@@ -1922,7 +1953,15 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           onClose={() => setIsImageUploadModalOpen(false)}
         />
 
-        <ToastContainer />
+        <ToastContainer
+          position="bottom-center"
+          limit={3}
+          newestOnTop
+          closeOnClick
+          autoClose={2000}
+          hideProgressBar
+          className="!mb-20 md:!mb-0"
+        />
       </div>
       {isModalOpen && selectedOrder && (
         // Backdrop
@@ -2909,12 +2948,17 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
               <button
                 onClick={() => {
                   setIsSubdomainCheckOpen(false);
-                  setIsScannerPaused(false); // Reset for next time
-                  // Open NFC modal with the current subdomain
+                  setIsScannerPaused(false);
+                  // Reset NFC state and open modal
+                  nfcAbortRef.current?.abort();
+                  nfcAbortRef.current = null;
                   const currentSubdomain = subdomainValue(selectedOrder);
                   const fullUrl = `https://${currentSubdomain}.ossotna.com`;
                   setNfcUrl(fullUrl);
-                  console.log("Setting NFC URL to:", fullUrl);
+                  setNfcStep("idle");
+                  setNfcWriteAttempts(0);
+                  setLastReadUrl("");
+                  setNfcVerifyMatch(null);
                   setIsNfcWriteModalOpen(true);
                 }}
                 className="w-1/2 py-3 bg-blue-700 hover:bg-blue-800 text-white font-medium text-lg rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors border-gray-400 border"
@@ -2941,14 +2985,10 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
 
       {/* NFC Writing Modal for Android */}
       {isNfcWriteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center ">
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
           <div className="flex flex-col items-center w-11/12 max-w-md">
             <div className="relative bg-white dark:bg-gray-800 p-6 rounded-md w-full border-gray-400 border">
               <h3 className="text-lg font-medium text-center mb-4 text-gray-900 dark:text-white">Write URL to NFC Tag</h3>
-
-              <p className="mb-6 text-sm text-gray-600 dark:text-gray-300">
-                On Android, you can write this URL to an NFC tag. Place your phone near an NFC tag when ready.
-              </p>
 
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">URL to write:</label>
@@ -2957,186 +2997,254 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                   value={nfcUrl}
                   onChange={(e) => setNfcUrl(e.target.value)}
                   className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  disabled={isNfcWriting}
+                  disabled={nfcStep !== "idle"}
                 />
               </div>
 
+              {/* NFC Status Icon */}
               <div className="flex flex-col items-center justify-center mb-4">
-                <div className={`w-24 h-24 mb-4 flex items-center justify-center rounded-full transition-all duration-500 ${isNfcWriting ? 'bg-blue-500 dark:bg-blue-600 shadow-lg shadow-blue-500/50 animate-pulse' : isNfcVerifying ? 'bg-green-500 dark:bg-green-600 shadow-lg shadow-green-500/50 animate-pulse' : 'bg-blue-100 dark:bg-blue-900'}`}>
-                  <span className={`material-symbols-outlined text-4xl transition-all duration-500 ${isNfcWriting || isNfcVerifying ? 'text-white animate-bounce' : 'text-blue-600 dark:text-blue-300'}`}>{isNfcVerifying ? 'check_circle' : 'nfc'}</span>
+                <div className={`w-24 h-24 mb-4 flex items-center justify-center rounded-full transition-all duration-500 ${
+                  nfcStep === "writing" ? 'bg-blue-500 shadow-lg shadow-blue-500/50 animate-pulse' :
+                  nfcStep === "waitingVerify" ? 'bg-yellow-500 shadow-lg shadow-yellow-500/50' :
+                  nfcStep === "verifying" ? 'bg-orange-500 shadow-lg shadow-orange-500/50 animate-pulse' :
+                  nfcStep === "done" ? (nfcVerifyMatch ? 'bg-green-500 shadow-lg shadow-green-500/50' : 'bg-red-500 shadow-lg shadow-red-500/50') :
+                  'bg-blue-100 dark:bg-blue-900'
+                }`}>
+                  <span className={`material-symbols-outlined text-4xl transition-all duration-500 ${
+                    nfcStep === "writing" || nfcStep === "verifying" ? 'text-white animate-bounce' :
+                    nfcStep === "waitingVerify" ? 'text-white' :
+                    nfcStep === "done" ? 'text-white' :
+                    'text-blue-600 dark:text-blue-300'
+                  }`}>{
+                    nfcStep === "done" && nfcVerifyMatch ? 'check_circle' :
+                    nfcStep === "done" && !nfcVerifyMatch ? 'error' :
+                    nfcStep === "waitingVerify" ? 'contactless' :
+                    'nfc'
+                  }</span>
                 </div>
                 <p className="text-center text-sm text-gray-600 dark:text-gray-400">
-                  {isNfcWriting ? 'Bring your phone close to an NFC tag to write...' :
-                    isNfcVerifying ? 'Tap the tag again to verify the written URL...' :
-                      nfcWriteAttempts > 0 ? `Previous attempt failed. Try again (Attempt ${nfcWriteAttempts + 1}/3)` :
-                        'Tap the button below to start NFC writing mode.'}
+                  {nfcStep === "idle" && nfcWriteAttempts === 0 && 'Tap the button below to start writing to the NFC tag.'}
+                  {nfcStep === "idle" && nfcWriteAttempts > 0 && `Previous verification failed. Retry (Attempt ${nfcWriteAttempts + 1}/3)`}
+                  {nfcStep === "writing" && 'Place your phone on the NFC tag to write...'}
+                  {nfcStep === "waitingVerify" && 'URL written! Remove the tag, then tap "Verify" and place it back to confirm.'}
+                  {nfcStep === "verifying" && 'Place the NFC tag on your phone again to verify...'}
+                  {nfcStep === "done" && nfcVerifyMatch && 'Verification successful! The URL was written correctly.'}
+                  {nfcStep === "done" && nfcVerifyMatch === false && 'Verification failed — the read URL does not match.'}
+                  {nfcStep === "done" && nfcVerifyMatch === null && 'Verification timed out.'}
                 </p>
-                {nfcWriteAttempts > 0 && !isNfcWriting && !isNfcVerifying && (
-                  <p className="text-center text-xs text-red-500 mt-2">
-                    Previous write verification failed. The URL may not have been written correctly.
-                  </p>
-                )}
               </div>
 
-              {/* Display the last read URL if available */}
-              {lastReadUrl && (
-                <div className="mb-4 p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last read URL:</p>
+              {/* Display the last read URL after verification */}
+              {lastReadUrl && (nfcStep === "done" || nfcStep === "waitingVerify") && (
+                <div className={`mb-4 p-3 border rounded-md ${nfcVerifyMatch ? 'border-green-400 bg-green-50 dark:bg-green-900/30' : 'border-orange-400 bg-orange-50 dark:bg-orange-900/30'}`}>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Read from tag:</p>
                   <p className="text-sm font-mono break-all text-gray-900 dark:text-gray-100">{lastReadUrl}</p>
-                  {nfcUrl !== lastReadUrl && (
+                  {nfcVerifyMatch === false && (
                     <p className="mt-2 text-sm text-orange-600 dark:text-orange-400">
-                      <span className="font-medium">Warning:</span> This URL is different from what was intended to be written ({nfcUrl}).
+                      <span className="font-medium">Mismatch:</span> Expected {nfcUrl}
                     </p>
                   )}
                 </div>
               )}
 
               <div className="flex flex-col gap-3">
-                {/* Show Done button if verification is complete */}
-                {showDoneButton && !isNfcWriting && !isNfcVerifying && (
+                {/* Done button — shown after successful verification */}
+                {nfcStep === "done" && nfcVerifyMatch && (
                   <button
                     onClick={() => {
-                      // Update order status and close modal
-                      if (selectedOrder && selectedOrder.id) {
-                        Promise.all([
-                          saveMetafieldAPI(selectedOrder.id, "story-stage", "single_line_text_field", "Live"),
-                          saveMetafieldAPI(selectedOrder.id, "printables-status", "single_line_text_field", "Ready"),
-                        ])
+                      if (selectedOrder?.id) {
+                        saveMetafieldAPI(selectedOrder.id, "story-stage", "single_line_text_field", "Live")
                           .then(() => {
                             setStoryStages((prev) => ({ ...prev, [selectedOrder.id]: "Live" }));
-                            setPrintablesStatuses((prev) => ({ ...prev, [selectedOrder.id]: "Ready" }));
-                            console.log("Order statuses updated after NFC write");
+                            console.log("Story stage set to Live after NFC write");
                           })
-                          .catch((err) => {
-                            console.error("Failed to update order statuses:", err);
-                          });
+                          .catch((err) => console.error("Failed to update story stage:", err));
                       }
-                      // Reset all states
+                      // Abort any lingering NFC operations
+                      nfcAbortRef.current?.abort();
+                      nfcAbortRef.current = null;
+                      setNfcStep("idle");
                       setNfcWriteAttempts(0);
                       setLastReadUrl("");
-                      setShowDoneButton(false);
-                      setVerificationCompleted(false);
+                      setNfcVerifyMatch(null);
                       setIsNfcWriteModalOpen(false);
-                      toast.success("NFC writing process completed.");
+                      toast.success("NFC tag programmed successfully!");
                     }}
-                    className="w-full p-3 text-white rounded-md font-medium transition-all duration-300 bg-green-600 hover:bg-green-700"
+                    className="w-full p-3 text-white rounded-md font-medium bg-green-600 hover:bg-green-700"
                   >
                     Done
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    // Reset verification state if retrying
-                    if (nfcWriteAttempts > 0) {
-                      console.log(`Retrying NFC write. Attempt ${nfcWriteAttempts + 1}/3`);
-                    }
-
-                    // On Android, this will try to use the Web NFC API
-                    if ('NDEFReader' in window) {
+                {/* Write / Retry button */}
+                {(nfcStep === "idle" || (nfcStep === "done" && !nfcVerifyMatch)) && (
+                  <button
+                    onClick={() => {
+                      if (!('NDEFReader' in window)) {
+                        toast.error("NFC is not supported on this device or browser.");
+                        return;
+                      }
                       try {
-                        setIsNfcWriting(true);
-                        setIsNfcVerifying(false);
-                        setVerificationCompleted(false);
+                        // Abort previous session
+                        nfcAbortRef.current?.abort();
+                        const ac = new AbortController();
+                        nfcAbortRef.current = ac;
+
+                        setNfcStep("writing");
+                        setLastReadUrl("");
+                        setNfcVerifyMatch(null);
+
                         const ndef = new (window as any).NDEFReader();
-
-                        console.log("Starting NFC writing with URL:", nfcUrl);
-
-                        // Validate URL format before writing
-                        let urlToWrite = nfcUrl;
+                        let urlToWrite = nfcUrlRef.current;
                         if (!urlToWrite.startsWith('https://') && !urlToWrite.startsWith('http://')) {
                           urlToWrite = 'https://' + urlToWrite;
-                          console.log("URL format corrected to:", urlToWrite);
                         }
+                        console.log("NFC write: starting scan for tag, URL:", urlToWrite);
 
-                        // Start scanning for NFC tags, then write once a tag is detected
-                        ndef.scan().then(() => {
-                          console.log("NFC scan started. Bring a tag close to write.");
-
-                          ndef.addEventListener('reading', ({ message, serialNumber }) => {
-                            console.log(`> Serial Number: ${serialNumber}`);
-                            console.log(`> Records: (${message.records.length})`);
-                            console.log(`> Writing URL: ${urlToWrite}`);
-
-                            ndef
-                              .write({
-                                records: [{ recordType: "url", data: urlToWrite }],
-                              })
+                        ndef.scan({ signal: ac.signal }).then(() => {
+                          ndef.addEventListener('reading', () => {
+                            console.log("NFC write: tag detected, writing...");
+                            ndef.write({ records: [{ recordType: "url", data: urlToWrite }] })
                               .then(() => {
-                                toast.success("URL written to NFC tag! Verifying...");
-                                setIsNfcWriting(false);
-                                setIsNfcVerifying(true);
-
-                                // Verification scan
-                                return ndef.scan();
+                                console.log("NFC write: success");
+                                // Abort the write scan session so it doesn't interfere with verification
+                                ac.abort();
+                                toast.success("URL written to tag! Remove the tag.");
+                                setNfcStep("waitingVerify");
                               })
-                              .then(() => {
-                                console.log("Verification scan started. Please tap the tag again.");
-                              })
-                              .catch((error) => {
-                                console.error("Error writing/verifying NFC tag:", error);
-                                setIsNfcWriting(false);
-                                setIsNfcVerifying(false);
-                                setVerificationCompleted(true);
-                                setShowDoneButton(true);
-                                toast.error("NFC write/verify failed. You can try again or proceed.");
+                              .catch((err) => {
+                                console.error("NFC write failed:", err);
+                                toast.error("Failed to write to NFC tag.");
+                                setNfcWriteAttempts((a) => a + 1);
+                                setNfcStep("idle");
                               });
+                          }, { once: true, signal: ac.signal });
 
-                            // Timeout in case verification doesn't complete
-                            setTimeout(() => {
-                              if (isNfcVerifying && !verificationCompleted) {
-                                setIsNfcVerifying(false);
-                                setVerificationCompleted(true);
-                                setShowDoneButton(true);
-                                toast.error("Verification timed out. You can try writing again or proceed.");
-                              }
-                            }, 30000);
-                          }, { once: true });
-
-                          // Add a timeout to cancel if no tag is found after 30 seconds
+                          // Timeout: 30s
                           setTimeout(() => {
-                            if (isNfcWriting) {
-                              setIsNfcWriting(false);
-                              toast.error("NFC operation timed out. Please try again.");
+                            if (nfcAbortRef.current === ac && !ac.signal.aborted) {
+                              ac.abort();
+                              setNfcStep((prev) => prev === "writing" ? "idle" : prev);
+                              toast.error("NFC timed out. Try again.");
                             }
                           }, 30000);
-                        }).catch((error) => {
-                          setIsNfcWriting(false);
-                          console.error("Error starting NFC scan:", error);
-                          toast.error("Error accessing NFC: " + (error?.message || "Unknown error"));
+                        }).catch((err) => {
+                          console.error("NFC scan error:", err);
+                          if (!ac.signal.aborted) {
+                            toast.error("NFC error: " + (err?.message || "Unknown"));
+                            setNfcStep("idle");
+                          }
                         });
-
-                      } catch (error: any) {
-                        setIsNfcWriting(false);
-                        console.error(error);
-                        toast.error("Error accessing NFC: " + error.message);
+                      } catch (err: any) {
+                        console.error("NFC error:", err);
+                        toast.error("NFC error: " + err.message);
+                        setNfcStep("idle");
                       }
-                    } else {
-                      toast.error("NFC is not supported on this device or browser");
-                    }
-                  }}
-                  disabled={isNfcWriting || isNfcVerifying}
-                  className={`border-gray-400 border w-full p-3 text-white rounded-md font-medium transition-all duration-300 ${isNfcWriting || isNfcVerifying ? 'bg-blue-400 cursor-not-allowed' : nfcWriteAttempts > 0 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                >
-                  {isNfcWriting ? 'Writing to NFC Tag...' :
-                    isNfcVerifying ? 'Verifying NFC Tag...' :
-                      nfcWriteAttempts > 0 ? `Retry NFC Writing (Attempt ${nfcWriteAttempts + 1}/3)` :
-                        'Start NFC Writing'}
-                </button>
+                    }}
+                    className={`border-gray-400 border w-full p-3 text-white rounded-md font-medium transition-all duration-300 ${nfcWriteAttempts > 0 ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {nfcWriteAttempts > 0 ? `Retry Writing (Attempt ${nfcWriteAttempts + 1})` : 'Start NFC Writing'}
+                  </button>
+                )}
 
+                {/* Verify button — shown after write success, user must re-tap */}
+                {nfcStep === "waitingVerify" && (
+                  <button
+                    onClick={() => {
+                      if (!('NDEFReader' in window)) {
+                        toast.error("NFC is not supported.");
+                        return;
+                      }
+                      try {
+                        nfcAbortRef.current?.abort();
+                        const ac = new AbortController();
+                        nfcAbortRef.current = ac;
+
+                        setNfcStep("verifying");
+                        const ndef = new (window as any).NDEFReader();
+                        console.log("NFC verify: starting scan to read back...");
+
+                        ndef.scan({ signal: ac.signal }).then(() => {
+                          ndef.addEventListener('reading', ({ message }) => {
+                            let readUrl = "";
+                            for (const record of message.records) {
+                              if (record.recordType === "url") {
+                                readUrl = new TextDecoder().decode(record.data);
+                                break;
+                              }
+                              if (record.recordType === "text") {
+                                readUrl = new TextDecoder().decode(record.data);
+                                break;
+                              }
+                            }
+                            console.log("NFC verify: read URL:", readUrl);
+                            setLastReadUrl(readUrl);
+
+                            const expected = nfcUrlRef.current;
+                            const match = readUrl.replace(/\/$/, '').toLowerCase() === expected.replace(/\/$/, '').toLowerCase();
+                            setNfcVerifyMatch(match);
+                            setNfcStep("done");
+                            if (match) {
+                              toast.success("Verification passed!");
+                            } else {
+                              toast.error("URL mismatch! Check the tag.");
+                              setNfcWriteAttempts((a) => a + 1);
+                            }
+                            ac.abort();
+                          }, { once: true, signal: ac.signal });
+
+                          // Timeout: 30s
+                          setTimeout(() => {
+                            if (nfcAbortRef.current === ac && !ac.signal.aborted) {
+                              ac.abort();
+                              setNfcVerifyMatch(null);
+                              setNfcStep("done");
+                              toast.error("Verification timed out. You can retry or close.");
+                            }
+                          }, 30000);
+                        }).catch((err) => {
+                          console.error("NFC verify scan error:", err);
+                          if (!ac.signal.aborted) {
+                            toast.error("NFC error: " + (err?.message || "Unknown"));
+                            setNfcStep("waitingVerify");
+                          }
+                        });
+                      } catch (err: any) {
+                        console.error("NFC verify error:", err);
+                        toast.error("NFC error: " + err.message);
+                        setNfcStep("waitingVerify");
+                      }
+                    }}
+                    className="border-gray-400 border w-full p-3 text-white rounded-md font-medium bg-yellow-600 hover:bg-yellow-700"
+                  >
+                    Verify — Place Tag on Phone
+                  </button>
+                )}
+
+                {/* Busy indicator for writing/verifying */}
+                {(nfcStep === "writing" || nfcStep === "verifying") && (
+                  <div className="w-full p-3 text-center text-gray-400 rounded-md font-medium bg-gray-600 cursor-not-allowed">
+                    {nfcStep === "writing" ? 'Writing to NFC Tag...' : 'Reading NFC Tag...'}
+                  </div>
+                )}
+
+                {/* Cancel button */}
                 <button
                   onClick={() => {
-                    if (!isNfcWriting && !isNfcVerifying) {
-                      // Reset all states when closing
-                      setNfcWriteAttempts(0);
-                      setLastReadUrl("");
-                      setShowDoneButton(false);
-                      setVerificationCompleted(false);
-                      setIsNfcWriteModalOpen(false);
-                    }
+                    nfcAbortRef.current?.abort();
+                    nfcAbortRef.current = null;
+                    setNfcStep("idle");
+                    setNfcWriteAttempts(0);
+                    setLastReadUrl("");
+                    setNfcVerifyMatch(null);
+                    setIsNfcWriteModalOpen(false);
                   }}
-                  disabled={isNfcWriting || isNfcVerifying}
-                  className={`border-gray-400 border w-full p-3 rounded-md font-medium transition-all duration-300 ${isNfcWriting || isNfcVerifying ? 'bg-gray-400 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'}`}
+                  disabled={nfcStep === "writing" || nfcStep === "verifying"}
+                  className={`border-gray-400 border w-full p-3 rounded-md font-medium transition-all duration-300 ${
+                    nfcStep === "writing" || nfcStep === "verifying"
+                      ? 'bg-gray-400 dark:bg-gray-600 text-gray-600 dark:text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200'
+                  }`}
                 >
                   Cancel
                 </button>

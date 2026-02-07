@@ -40,7 +40,7 @@ export const useIsNFCSupported = () => {
  const [isNFCSupported, setIsNFCSupported] = useState(false);
 
  useEffect(() => {
-   if ("NDEFWriter" in window) {
+   if ("NDEFReader" in window) {
      setIsNFCSupported(true);
    } else {
      setIsNFCSupported(false);
