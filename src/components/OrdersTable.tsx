@@ -135,7 +135,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
   setActiveModalTab,
   setIsModalOpen,
 }) => {
-  const GRID_COLS = "grid-cols-[1fr] md:grid-cols-[1.2fr_1.5fr_1.5fr_1.5fr_1.5fr_1.5fr_1.5fr_3fr_0.8fr]";
+  const GRID_COLS = "grid-cols-[1fr] md:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto_auto]";
 
   return (
     <div className={`h-full w-full md:pb-0 pb-44 ${isLoading ? "pointer-events-none opacity-50" : ""}`}>
@@ -145,13 +145,12 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
             {/* Table Header */}
             <div className={`grid ${GRID_COLS} bg-gray-600 text-white font-bold border-b border-gray-500 text-sm`}>
               <div className="px-3 py-2 md:block">Order</div>
-              <div className="px-3 py-2 hidden md:block">Customer</div>
               <div className="px-3 py-2 hidden md:block">Properties</div>
               <div className="px-3 py-2 hidden md:block">Subdomain</div>
               <div className="px-3 py-2 hidden md:block">Story</div>
               <div className="px-3 py-2 hidden md:block">Printables</div>
               <div className="px-3 py-2 hidden md:block">Fulfillment</div>
-              <div className="px-3 py-2 hidden md:block text-center">Actions</div>
+              <div className="px-3 py-2 hidden md:block pl-5">Actions</div>
               <div className="px-3 py-2 hidden md:block text-center"></div>
             </div>
 
@@ -166,7 +165,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                 return (
                   <div
                     key={order.id}
-                    className={`grid ${GRID_COLS} border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${getRowBackgroundClass(order, storyStages, printablesStatuses, fulfillmentStatuses)} min-w-0 md:cursor-default cursor-pointer`}
+                    className={`grid ${GRID_COLS} border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${getRowBackgroundClass(order, storyStages, printablesStatuses, fulfillmentStatuses)} min-w-0 md:cursor-default cursor-pointer p-2`}
                     onClick={() => { if (window.innerWidth < 768) handleOpenModal(order); }}
                   >
                     {/* Column 0: Order Number + Customer (mobile) + Print/Shopify (desktop) */}
@@ -199,6 +198,57 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           <span className="text-[10px] text-gray-400 italic">{order.line_items[0].variant_title}</span>
                         </div>
                       </div>
+                      {/* Desktop: customer info below order number */}
+                      <div className="hidden md:flex flex-col gap-0.5 mt-1 text-sm text-gray-300">
+                        <span className="font-medium">{order?.shipping_address?.first_name} {order?.shipping_address?.last_name}</span>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                          {order?.shipping_address?.city && <span>{order.shipping_address.city}</span>}
+                          {order?.shipping_address?.city && getPhoneNumber(order) && <span>•</span>}
+                          {getPhoneNumber(order) && (
+                            <a
+                              href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {getPhoneNumber(order)}
+                            </a>
+                          )}
+                        </div>
+                        {/* WhatsApp Quick Actions */}
+                        <div className="flex gap-1 mt-1">
+                          <a
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), `Hello ${order?.shipping_address?.first_name}`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                            title="Quick Hello"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">waving_hand</span>
+                          </a>
+                          <a
+                            href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                            title="Thank You Message"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">volunteer_activism</span>
+                          </a>
+                          {order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-url") && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleSendPreviewLink(order); }}
+                              className="flex items-center justify-center w-8 h-8 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                              title="Send Preview Link"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">Draft</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       <div className="hidden md:flex gap-1 mt-1.5">
                         <button
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition text-xs font-medium"
@@ -216,57 +266,6 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           <span className="material-symbols-outlined text-[18px]">print</span>
                           Print
                         </button>
-                      </div>
-                    </div>
-
-                    {/* Column 1: Customer Info */}
-                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 overflow-hidden hidden md:block">
-                      {order?.shipping_address?.first_name} {order?.shipping_address?.last_name}
-                      <br />
-                      {order?.shipping_address?.city && (
-                        <>
-                          {order.shipping_address.city}
-                          <br />
-                        </>
-                      )}
-                      <a
-                        href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)))}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 underline"
-                      >
-                        {getPhoneNumber(order) || "N/A"}
-                      </a>
-
-                      {/* WhatsApp Quick Actions */}
-                      <div className="flex gap-1 mt-1">
-                        <a
-                          href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), `Hello ${order?.shipping_address?.first_name}`)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
-                          title="Quick Hello"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">waving_hand</span>
-                        </a>
-                        <a
-                          href={getWhatsAppUrl(formatPhoneForWhatsApp(getPhoneNumber(order)), `Hello ${order?.shipping_address?.first_name}!\nThank you for choosing the Ossotna Story Book.\n\nYour order story is being prepared. Once done, we will share a preview link for your review.`)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
-                          title="Thank You Message"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">volunteer_activism</span>
-                        </a>
-                        {order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-url") && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleSendPreviewLink(order); }}
-                            className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
-                            title="Send Preview Link"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">Draft</span>
-                          </button>
-                        )}
                       </div>
                     </div>
 
@@ -440,55 +439,55 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 7: Action Buttons */}
-                    <div className="hidden md:flex flex-col items-end justify-center gap-1 px-2 py-2">
+                    <div className="hidden md:flex flex-col items-start justify-center gap-1.5 pl-5 pr-2 py-2">
                       {/* Row 1: Story, Upload, Copy URLs */}
                       <div className="flex gap-1">
                         <button
-                          className="flex items-center justify-center w-9 h-9 rounded bg-purple-700 hover:bg-purple-600 text-white transition"
+                          className="flex items-center justify-center w-10 h-10 rounded bg-purple-700 hover:bg-purple-600 text-white transition"
                           onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); setSelectedOrder(order); setActiveModalTab("story"); setIsModalOpen(true); }}
                           title="Generate Story"
                         >
-                          <span className="material-symbols-outlined text-[20px]">auto_stories</span>
+                          <span className="material-symbols-outlined text-[22px]">auto_stories</span>
                         </button>
                         <button
-                          className={`flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[order.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`}
+                          className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[order.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`}
                           onClick={(e) => { e.stopPropagation(); handleProcessAndUploadImages(order); }}
                           disabled={loadingOrders[order.id]}
                           title="Process & Upload Images"
                         >
-                          <span className="material-symbols-outlined text-[20px]">{loadingOrders[order.id] ? "arrow_upload_progress" : "cloud_upload"}</span>
+                          <span className="material-symbols-outlined text-[22px]">{loadingOrders[order.id] ? "arrow_upload_progress" : "cloud_upload"}</span>
                         </button>
                         <button
-                          className={`flex items-center justify-center w-9 h-9 rounded transition ${order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-photos") ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-700 text-gray-500 opacity-50"}`}
+                          className={`flex items-center justify-center w-10 h-10 rounded transition ${order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-photos") ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-700 text-gray-500 opacity-50"}`}
                           onClick={(e) => { e.stopPropagation(); handleCopyStoryPhotosJSON(order); }}
                           disabled={!order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-photos")}
                           title="Copy Images JSON"
                         >
-                          <span className="material-symbols-outlined text-[20px]">photo_library</span>
+                          <span className="material-symbols-outlined text-[22px]">photo_library</span>
                         </button>
                       </div>
                       {/* Row 2: Copy Props, Open Story, Open Story Localhost */}
                       <div className="flex gap-1">
                         <button
-                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
                           onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); }}
                           title="Copy Properties"
                         >
-                          <span className="material-symbols-outlined text-[20px]">content_copy</span>
+                          <span className="material-symbols-outlined text-[22px]">content_copy</span>
                         </button>
                         <button
-                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
                           onClick={(e) => { e.stopPropagation(); handleCopyPasswordAndOpenSubdomain(order); }}
                           title="Open Story"
                         >
-                          <span className="material-symbols-outlined text-[20px]">language</span>
+                          <span className="material-symbols-outlined text-[22px]">language</span>
                         </button>
                         <button
-                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
                           onClick={(e) => { e.stopPropagation(); handleCopySubdomainAndOpenLocalhost(order); }}
                           title="Open Story Localhost"
                         >
-                          <span className="material-symbols-outlined text-[20px]">dns</span>
+                          <span className="material-symbols-outlined text-[22px]">dns</span>
                         </button>
                       </div>
                       {/* Progress Indicators */}
@@ -505,9 +504,9 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 8: Order Detail Button (desktop only) */}
-                    <div className="px-2 py-2 hidden md:flex items-center justify-center">
+                    <div className="px-1 py-1 hidden md:flex items-stretch justify-center">
                       <button
-                        className="flex items-center justify-center w-12 h-12 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition"
+                        className="flex items-center justify-center w-12 h-full rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition"
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(order); }}
                         title="Open Order Details"
                       >

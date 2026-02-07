@@ -4,6 +4,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import PinLock from '@/components/PinLock';
+import Layout from '@/components/Layout';
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -86,14 +87,24 @@ export default function App({ Component, pageProps }: AppProps) {
     );
   }
 
+  // Pages that should not have the sidebar layout
+  const noLayoutRoutes = ['/'];
+  const shouldUseLayout = !noLayoutRoutes.includes(router.pathname);
+
   return (
     <>
       <Head>
         <title>Ossotna Fulfillment System</title>
       </Head>
-      <main className="font-sans">
-        <Component {...pageProps} />
-      </main>
+      {shouldUseLayout ? (
+        <Layout>
+          <Component {...pageProps} />
+        </Layout>
+      ) : (
+        <main className="font-sans">
+          <Component {...pageProps} />
+        </main>
+      )}
     </>
   );
 }

@@ -27,9 +27,9 @@ import {
 import TwoFramesPreview, { OnePDFWithTwoFramesRef } from "@/components/CardsPreview";
 import Image from "next/image";
 
-const OrdersPage = () => {
+const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   // 1) State + custom hook usage
-  const { orders, limit, setLimit, isLoading, fetchOrders } = useOrders();
+  const { orders, limit, setLimit, isLoading, fetchOrders } = useOrders(apiEndpoint);
   // Add this alongside your existing useState declarations
   const [isSubdomainCheckOpen, setIsSubdomainCheckOpen] = useState(false);
 
@@ -90,6 +90,18 @@ const OrdersPage = () => {
   const printablesStatusOptions = ["Pending", "Review", "Printing", "Ready"];
   const storyStageOptions = ["Pending", "Waiting", "Review", "Live"];
   const fulfillmentStatusOptions = ["New Order", "Ready For Delivery", "Sent For Delivery", "Delivered"];
+
+  // Listen for sidebar action events
+  useEffect(() => {
+    const handleScanOrder = () => setIsCameraOpen(true);
+    const handleUploadImages = () => setIsImageUploadModalOpen(true);
+    window.addEventListener('sidebar:scan-order', handleScanOrder);
+    window.addEventListener('sidebar:upload-images', handleUploadImages);
+    return () => {
+      window.removeEventListener('sidebar:scan-order', handleScanOrder);
+      window.removeEventListener('sidebar:upload-images', handleUploadImages);
+    };
+  }, []);
 
   const getMetafieldValue = (order, key) => {
     return order.metafields?.find((mf) => mf.namespace === "custom" && mf.key === key)?.value;
@@ -1821,48 +1833,24 @@ const OrdersPage = () => {
   // 4) Render
   return (
     <>
-      <div className="p-4 md:p-6 bg-gray-900 min-h-screen relative">
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center justify-start mb-4">
-          <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mr-2" />
-          <LogoutButton />
-        </div>
-
-        {/* Mobile Navigation - Fixed at top */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gray-800 p-2 pt-4 flex justify-between items-center border-b border-gray-500 px-4">
-          {/* <div className="flex-1"></div> */}
-          <img src="/ossotna-FC-logo.svg" alt="Ossotna Logo" className="h-10 mb-2" />
-          <div className="flex-1 flex justify-end">
-            <LogoutButton />
-          </div>
-        </div>
-
+      <div className="p-4 md:p-6 bg-gray-900 min-h-screen relative pb-40 md:pb-6">
         {/* Mobile Footer Navigation */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-700 p-4 flex flex-col gap-3 border-t border-gray-400 shadow-lg">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-700 p-3 flex flex-col gap-2 border-t border-gray-500 shadow-lg">
           <button
             onClick={() => setIsCameraOpen(true)}
-            className="p-4 bg-blue-600 text-white rounded-md shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 w-full flex items-center justify-center gap-2 transition-colors border-gray-400 border"
-            title="Scan Order QR Code"
+            className="p-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 w-full flex items-center justify-center gap-2 transition-colors border border-blue-500"
           >
-            <span className="material-symbols-outlined">qr_code_scanner</span>
-            <span className="font-medium text-lg">Scan Order Label</span>
+            <span className="material-symbols-outlined text-[20px]">qr_code_scanner</span>
+            <span className="font-medium">Scan Order Label</span>
           </button>
-
           <button
             onClick={() => setIsDeliveryScanOpen(true)}
-            className="p-4 bg-green-600 text-white rounded-md shadow-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 w-full flex items-center justify-center gap-2 transition-colors border-gray-400 border"
-            title="Mark as Ready for Delivery"
+            className="p-3 bg-green-600 text-white rounded-md hover:bg-green-700 w-full flex items-center justify-center gap-2 transition-colors border border-green-500"
           >
-            <span className="material-symbols-outlined">local_shipping</span>
-            <span className="font-medium text-lg">Mark Ready for Delivery</span>
+            <span className="material-symbols-outlined text-[20px]">local_shipping</span>
+            <span className="font-medium">Mark Ready for Delivery</span>
           </button>
         </div>
-
-        {/* Spacer for fixed mobile navigation */}
-        {/* <div className="md:hidden h-16"></div> */}
-
-        {/* Spacer for fixed mobile footer */}
-        <div className="md:hidden h-14 mb-4"></div>
 
         {/* Limit Selector */}
         <div className="mb-4 flex items-center gap-4">
@@ -1882,29 +1870,6 @@ const OrdersPage = () => {
             <option value="250">250</option>
           </select>
 
-          {/* Version Display */}
-          <div className="ml-auto mt-0 md:mt-4"><VersionDisplay /></div>
-
-          {/* Top Right Buttons */}
-          <div className="fixed top-6 right-6 md:flex hidden space-x-4">
-            {/* QR Code Camera Button - Desktop only */}
-            <button
-              onClick={() => setIsCameraOpen(true)}
-              className="p-4 pr-5 pl-5 pt-5 bg-blue-500 text-white rounded shadow-lg hover:bg-blue-600 focus:outline-none"
-              title="Scan Order QR Code"
-            >
-              <span className="material-symbols-outlined">qr_code_scanner</span>
-            </button>
-
-            {/* Image Upload Button - Desktop only */}
-            <button
-              onClick={() => setIsImageUploadModalOpen(true)}
-              className="p-4 pr-5 pl-5 pt-5 bg-green-600 text-white rounded shadow-lg hover:bg-green-700 focus:outline-none"
-              title="Upload Custom Images"
-            >
-              <span className="material-symbols-outlined">add_photo_alternate</span>
-            </button>
-          </div>
 
         </div>
 
@@ -2286,7 +2251,7 @@ const OrdersPage = () => {
                 <div className={`flex flex-col md:flex-row h-full overflow-hidden overflow-y-auto`}>
 
                   {/* LEFT PANEL: Split into Inputs (left) + PDF Preview (right) */}
-                  <div className="w-full md:w-[50%] p-4 md:p-5 md:overflow-y-auto md:border-r border-gray-200 dark:border-gray-700">
+                  <div className="w-full md:w-2/3 p-4 md:p-5 md:overflow-y-auto md:border-r border-gray-200 dark:border-gray-700">
                     <div className="flex flex-col-reverse md:flex-row gap-4 h-full">
 
                       {/* Left half: Input Fields */}
@@ -2445,7 +2410,7 @@ const OrdersPage = () => {
                   </div>
 
                   {/* RIGHT PANEL: Customer, Actions, Properties */}
-                  <div className="w-full md:w-[50%] md:overflow-y-auto p-4 md:p-5 flex flex-col gap-4 md:pb-6 pb-44">
+                  <div className="w-full md:w-1/3 md:overflow-y-auto p-4 md:p-5 flex flex-col gap-4 md:pb-6 pb-44">
 
                     {/* Customer Info + WhatsApp + Quick Links */}
                     <div className="flex flex-wrap items-center gap-3 text-gray-800 dark:text-gray-300">

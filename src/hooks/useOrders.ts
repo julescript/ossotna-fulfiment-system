@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { fetchOrdersAPI } from "../services/orderService";
 
-export function useOrders() {
+export function useOrders(apiEndpoint = "api/shopify/orders") {
   const [orders, setOrders] = useState([]);
   const [limit, setLimit] = useState(100); // default limit
   const [isLoading, setIsLoading] = useState(false);
@@ -10,7 +10,9 @@ export function useOrders() {
   const fetchOrders = async (limitValue) => {
     try {
       setIsLoading(true);
-      const data = await fetchOrdersAPI(limitValue);
+      const res = await fetch(`${apiEndpoint}?limit=${limitValue}`);
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      const data = await res.json();
       setOrders(data);
     } catch (error) {
       console.error("Error fetching orders:", error);
