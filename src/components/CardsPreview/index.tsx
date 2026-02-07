@@ -252,19 +252,31 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
         drawTextAsVector(page, vollkornRegular, milestoneDate, milestoneX, milestoneY, milestoneFontSize, rgb(0.98, 0.98, 0.98));
       }
 
-      // Dedication.
+      // Dedication (supports multi-line via \n).
       const dedicationIsArabic = isArabic(dedicationLine) && arabicRegularFont;
       const dedicationFontSize = dedicationIsArabic ? 8.5 : 8.5;
-      const dedicationY = 28;
+      const dedicationBaseY = 28;
+      const dedicationLineHeight = dedicationFontSize * 1.3;
+      const maxDedicationWidth = (2 / 3) * CARD_WIDTH;
       if (dedicationIsArabic) {
         const dedicationText = reshapeArabic(dedicationLine);
-        const dedicationWidth = arabicRegularFont.widthOfTextAtSize(dedicationText, dedicationFontSize);
-        const dedicationX = (CARD_WIDTH - dedicationWidth) / 2;
-        page.drawText(dedicationText, { x: dedicationX, y: dedicationY, size: dedicationFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
+        const dedicationLines = wrapTextEmbedded(dedicationText, arabicRegularFont, dedicationFontSize, maxDedicationWidth);
+        let currentY = dedicationBaseY + (dedicationLines.length - 1) * dedicationLineHeight;
+        dedicationLines.forEach((line) => {
+          const lineWidth = arabicRegularFont.widthOfTextAtSize(line, dedicationFontSize);
+          const lineX = (CARD_WIDTH - lineWidth) / 2;
+          page.drawText(line, { x: lineX, y: currentY, size: dedicationFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
+          currentY -= dedicationLineHeight;
+        });
       } else {
-        const dedicationWidth = vollkornItalic.getAdvanceWidth(dedicationLine, dedicationFontSize);
-        const dedicationX = (CARD_WIDTH - dedicationWidth) / 2;
-        drawTextAsVector(page, vollkornItalic, dedicationLine, dedicationX, dedicationY, dedicationFontSize, rgb(0.98, 0.98, 0.98));
+        const dedicationLines = wrapText(dedicationLine, vollkornItalic, dedicationFontSize, maxDedicationWidth);
+        let currentY = dedicationBaseY + (dedicationLines.length - 1) * dedicationLineHeight;
+        dedicationLines.forEach((line) => {
+          const lineWidth = vollkornItalic.getAdvanceWidth(line, dedicationFontSize);
+          const lineX = (CARD_WIDTH - lineWidth) / 2;
+          drawTextAsVector(page, vollkornItalic, line, lineX, currentY, dedicationFontSize, rgb(0.98, 0.98, 0.98));
+          currentY -= dedicationLineHeight;
+        });
       }
 
       // Draw Right Card.

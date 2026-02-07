@@ -170,6 +170,8 @@ const OrdersPage = () => {
   const handleOpenModal = (order) => {
     setSelectedOrder(order);
     setActiveModalTab(isMobile() ? "delivery" : "details");
+    setClipboardContent("");
+    setGeneratedStory("");
     setIsModalOpen(true);
   };
 
@@ -1303,9 +1305,15 @@ const OrdersPage = () => {
   /**
    * Specific handlers for each field.
    */
-  const handleSaveDedicationLine = (orderId, dedicationLine) => {
-    console.log("handleSaveMetafield", orderId, dedicationLine)
-    handleSaveMetafield(orderId, "story-dedication", dedicationLine);
+  const handleSaveDedicationLine = async (orderId, dedicationLine) => {
+    try {
+      await saveMetafieldAPI(orderId, "story-dedication", "multi_line_text_field", dedicationLine);
+      toast.success("Dedication line saved successfully!", { autoClose: 2000 });
+      fetchOrders(limit);
+    } catch (error) {
+      console.error("Error saving dedication line:", error);
+      toast.error("Failed to save dedication line!", { autoClose: 2000 });
+    }
   };
 
   const handleSaveStoryTitle = (orderId, storyTitle) => {
@@ -1457,7 +1465,7 @@ const OrdersPage = () => {
     handleSaveMetafield(order.id, "story-title", storyTitles[order.id] || "");
     
     // Save Dedication Line
-    handleSaveMetafield(order.id, "story-dedication", dedicationLines[order.id] || "");
+    handleSaveDedicationLine(order.id, dedicationLines[order.id] || "");
     
     toast.success("All fields saved successfully!", { autoClose: 2000 });
   };
@@ -1980,14 +1988,26 @@ const OrdersPage = () => {
                     <h2 className="text-xl font-bold">{selectedOrder.name}</h2>
                     {(() => {
                       const storyType = selectedOrder.line_items[0].properties.find(p => p.name === "story-type")?.value || "Standard";
+                      const storyLanguage = selectedOrder.line_items[0].properties.find(p => p.name === "story-language")?.value || "";
                       let bgColor = "bg-gray-600";
                       if (storyType.toLowerCase() === "mother") bgColor = "bg-purple-600";
                       else if (storyType.toLowerCase() === "love") bgColor = "bg-red-600";
-                      else if (storyType.toLowerCase() === "friendship") bgColor = "bg-blue-800";
+                      else if (storyType.toLowerCase() === "friendship") bgColor = "bg-blue-500";
+                      let langColor = "bg-gray-600";
+                      if (storyLanguage.toLowerCase() === "ar") langColor = "bg-amber-800";
+                      else if (storyLanguage.toLowerCase() === "en") langColor = "bg-green-800";
+                      else if (storyLanguage.toLowerCase() === "fr") langColor = "bg-blue-900";
                       return (
-                        <span className={`px-2 py-0.5 ${bgColor} rounded text-white text-xs font-bold`}>
-                          {storyType.toUpperCase()}
-                        </span>
+                        <>
+                          <span className={`px-2 py-0.5 ${bgColor} rounded text-white text-xs font-bold`}>
+                            {storyType.toUpperCase()}
+                          </span>
+                          {storyLanguage && (
+                            <span className={`px-2 py-0.5 ${langColor} rounded text-white text-xs font-bold`}>
+                              {storyLanguage.toUpperCase()}
+                            </span>
+                          )}
+                        </>
                       );
                     })()}
                   </div>

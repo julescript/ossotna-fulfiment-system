@@ -182,11 +182,19 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                         <div className="flex items-center gap-1 mt-0.5">
                           {(() => {
                             const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
+                            const lang = order.line_items[0].properties.find((p: any) => p.name === "story-language")?.value || "";
                             let bgColor = "bg-gray-600";
                             if (st.toLowerCase() === "mother") bgColor = "bg-purple-600";
                             else if (st.toLowerCase() === "love") bgColor = "bg-red-600";
-                            else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-800";
-                            return <span className={`inline-block px-1.5 py-0.5 ${bgColor} rounded text-white text-[10px] font-bold`}>{st.toUpperCase()}</span>;
+                            else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-500";
+                            let langColor = "bg-gray-600";
+                            if (lang.toLowerCase() === "ar") langColor = "bg-amber-800";
+                            else if (lang.toLowerCase() === "en") langColor = "bg-green-800";
+                            else if (lang.toLowerCase() === "fr") langColor = "bg-blue-900";
+                            return <>
+                              <span className={`inline-block px-1.5 py-0.5 ${bgColor} rounded text-white text-[10px] font-bold`}>{st.toUpperCase()}</span>
+                              {lang && <span className={`inline-block px-1.5 py-0.5 ${langColor} rounded text-white text-[10px] font-bold`}>{lang.toUpperCase()}</span>}
+                            </>;
                           })()}
                           <span className="text-[10px] text-gray-400 italic">{order.line_items[0].variant_title}</span>
                         </div>
@@ -267,14 +275,26 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                       <div className="flex items-center gap-1 mb-1 flex-wrap">
                         {(() => {
                           const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
+                          const lang = order.line_items[0].properties.find((p: any) => p.name === "story-language")?.value || "";
                           let bgColor = "bg-gray-600";
                           if (st.toLowerCase() === "mother") bgColor = "bg-purple-600";
                           else if (st.toLowerCase() === "love") bgColor = "bg-red-600";
-                          else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-800";
+                          else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-500";
+                          let langColor = "bg-gray-600";
+                          if (lang.toLowerCase() === "ar") langColor = "bg-amber-800";
+                          else if (lang.toLowerCase() === "en") langColor = "bg-green-800";
+                          else if (lang.toLowerCase() === "fr") langColor = "bg-blue-900";
                           return (
-                            <span className={`inline-block px-2 py-0.5 ${bgColor} rounded text-white text-xs font-bold`}>
-                              {st.toUpperCase()}
-                            </span>
+                            <>
+                              <span className={`inline-block px-2 py-0.5 ${bgColor} rounded text-white text-xs font-bold`}>
+                                {st.toUpperCase()}
+                              </span>
+                              {lang && (
+                                <span className={`inline-block px-2 py-0.5 ${langColor} rounded text-white text-xs font-bold`}>
+                                  {lang.toUpperCase()}
+                                </span>
+                              )}
+                            </>
                           );
                         })()}
                         {storyType?.value && (
