@@ -2369,7 +2369,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                         <h3 className="text-xs font-bold text-gray-300 uppercase tracking-widest border-b border-gray-700 pb-1">Card Fields</h3>
 
                         {/* Bulk Actions - at top */}
-                        <div className="hidden md:flex gap-2">
+                        <div className="flex gap-2">
                           <button onClick={() => handleRestoreAllFields(selectedOrder)} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md text-sm font-medium transition" title="Restore All">
                             <span className="material-symbols-outlined text-[18px]">restore</span>Restore All
                           </button>
@@ -2381,11 +2381,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                         {/* Milestone Date */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Milestone Date</label>
-                          {isMobile() ? (
-                            <div className="w-full px-3 py-2 rounded-md border border-gray-600 text-sm text-gray-100 bg-gray-700">{milestoneDates[selectedOrder.id] || "—"}</div>
-                          ) : (
-                            <>
-                              <input
+                          <input
                                 type="text"
                                 id="milestone-date"
                                 value={milestoneDates[selectedOrder.id] || ""}
@@ -2410,18 +2406,12 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                                 }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs transition" title="Load from order"><span className="material-symbols-outlined text-[16px]">restore</span>Load</button>
                                 <button onClick={() => handleSaveMilestoneDate(selectedOrder.id, milestoneDates[selectedOrder.id] || "")} disabled={isMilestoneDateInSync(selectedOrder)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs transition disabled:opacity-40" title="Save"><span className="material-symbols-outlined text-[16px]">save</span>Save</button>
                               </div>
-                            </>
-                          )}
                         </div>
 
                         {/* Story Title */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Story Title</label>
-                          {isMobile() ? (
-                            <div className="w-full px-3 py-2 rounded-md border border-gray-600 text-sm text-gray-100 bg-gray-700">{storyTitles[selectedOrder.id] || "—"}</div>
-                          ) : (
-                            <>
-                              <textarea
+                          <textarea
                                 id="story-title"
                                 value={storyTitles[selectedOrder.id] || ""}
                                 onChange={(e) => setStoryTitles((prev) => ({ ...prev, [selectedOrder.id]: e.target.value }))}
@@ -2444,18 +2434,12 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                                 }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs transition" title="Load from order"><span className="material-symbols-outlined text-[16px]">restore</span>Load</button>
                                 <button onClick={() => handleSaveStoryTitle(selectedOrder.id, storyTitles[selectedOrder.id] || "")} disabled={isStoryTitleInSync(selectedOrder)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs transition disabled:opacity-40" title="Save"><span className="material-symbols-outlined text-[16px]">save</span>Save</button>
                               </div>
-                            </>
-                          )}
                         </div>
 
                         {/* Dedication Line */}
                         <div>
                           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Dedication Line</label>
-                          {isMobile() ? (
-                            <div className="w-full px-3 py-2 rounded-md border border-gray-600 text-sm text-gray-100 bg-gray-700">{dedicationLines[selectedOrder.id] || "—"}</div>
-                          ) : (
-                            <>
-                              <textarea
+                          <textarea
                                 id="dedication-line"
                                 value={dedicationLines[selectedOrder.id] || ""}
                                 onChange={(e) => setDedicationLines((prev) => ({ ...prev, [selectedOrder.id]: e.target.value }))}
@@ -2483,12 +2467,10 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                                 }} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-500 text-gray-300 hover:text-white text-xs transition" title="Load from order"><span className="material-symbols-outlined text-[16px]">restore</span>Load</button>
                                 <button onClick={() => handleSaveDedicationLine(selectedOrder.id, dedicationLines[selectedOrder.id] || "")} disabled={isDedicationLineInSync(selectedOrder)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs transition disabled:opacity-40" title="Save"><span className="material-symbols-outlined text-[16px]">save</span>Save</button>
                               </div>
-                            </>
-                          )}
                         </div>
 
                         {/* Subdomain */}
-                        <div className="hidden md:block">
+                        <div>
                           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Subdomain</label>
                           <div className="flex gap-2 items-center">
                             <input type="text" value={subdomainValue(selectedOrder)} disabled className="flex-1 px-3 py-2 rounded-md border border-gray-600 text-sm dark:bg-gray-700 dark:text-gray-300 opacity-75" />
@@ -2544,7 +2526,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                       {/* Story & Data */}
                       <button onClick={(e) => { e.stopPropagation(); handleCopyProperties(selectedOrder); }} className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition" title="Copy Properties"><span className="material-symbols-outlined text-[22px]">content_copy</span></button>
                       <button className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders2[selectedOrder.id] ? "text-gray-500 cursor-not-allowed" : "text-blue-400 hover:text-blue-300"}`} onClick={(e) => { e.stopPropagation(); handleDownloadImagesAsZip(selectedOrder); }} disabled={loadingOrders2[selectedOrder.id]} title="Download ZIP">{loadingOrders2[selectedOrder.id] ? <span className="material-symbols-outlined text-[22px]">downloading</span> : <span className="material-symbols-outlined text-[22px]">download</span>}</button>
-                      <button className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[selectedOrder.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`} onClick={(e) => { e.stopPropagation(); handleProcessAndUploadImages(selectedOrder); }} disabled={loadingOrders[selectedOrder.id]} title="Upload Images">{loadingOrders[selectedOrder.id] ? <span className="material-symbols-outlined text-[22px]">arrow_upload_progress</span> : <span className="material-symbols-outlined text-[22px]">cloud_upload</span>}</button>
+                      <button className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[selectedOrder.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`} onClick={(e) => { e.stopPropagation(); handleProcessAndUploadImages(selectedOrder); }} disabled={loadingOrders[selectedOrder.id]} title="Upload Images">{loadingOrders[selectedOrder.id] ? <span className="material-symbols-outlined text-[22px] animate-spin">autorenew</span> : <span className="material-symbols-outlined text-[22px]">cloud_upload</span>}</button>
                       <button className={`flex items-center justify-center w-10 h-10 rounded transition ${selectedOrder.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-photos") ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-700 text-gray-500 opacity-50"}`} onClick={(e) => { e.stopPropagation(); handleCopyStoryPhotosJSON(selectedOrder); }} disabled={!selectedOrder.metafields?.some((mf) => mf.namespace === "custom" && mf.key === "story-photos")} title="Copy Images JSON"><span className="material-symbols-outlined text-[22px]">photo_library</span></button>
                       <div className="w-px h-10 bg-gray-600 mx-0.5"></div>
                       {/* Links */}
@@ -2737,6 +2719,25 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
               {activeModalTab === "images" && (
               <div className="flex-1 overflow-hidden p-0">
                 <div className="h-full overflow-y-auto p-4 md:p-6">
+                  {/* Process & Upload from Shopify */}
+                  <div className="mb-4">
+                    <button
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition ${loadingOrders[selectedOrder.id] ? "bg-gray-600 text-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-500 text-white"}`}
+                      onClick={() => handleProcessAndUploadImages(selectedOrder)}
+                      disabled={loadingOrders[selectedOrder.id]}
+                    >
+                      {loadingOrders[selectedOrder.id] ? (
+                        <span className="material-symbols-outlined text-[20px] animate-spin">autorenew</span>
+                      ) : (
+                        <span className="material-symbols-outlined text-[20px]">cloud_upload</span>
+                      )}
+                      {loadingOrders[selectedOrder.id] ? "Uploading..." : "Process & Upload Story Images"}
+                    </button>
+                    {uploadProgress[selectedOrder.id] && (
+                      <div className="text-xs text-gray-400 mt-1">Uploading {uploadProgress[selectedOrder.id].current}/{uploadProgress[selectedOrder.id].total}</div>
+                    )}
+                  </div>
+
                   {/* Existing Cloudinary Images */}
                   <div className="mb-6">
                     <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Uploaded Images (story-photos)</h3>

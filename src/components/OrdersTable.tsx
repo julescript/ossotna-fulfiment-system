@@ -480,7 +480,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           disabled={loadingOrders[order.id]}
                           title="Process & Upload Images"
                         >
-                          <span className="material-symbols-outlined text-[22px]">{loadingOrders[order.id] ? "arrow_upload_progress" : "cloud_upload"}</span>
+                          <span className={`material-symbols-outlined text-[22px] ${loadingOrders[order.id] ? "animate-spin" : ""}`}>{loadingOrders[order.id] ? "autorenew" : "cloud_upload"}</span>
                         </button>
                         <button
                           className={`flex items-center justify-center w-10 h-10 rounded transition ${order.metafields?.some((mf: any) => mf.namespace === "custom" && mf.key === "story-photos") ? "bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white" : "bg-gray-700 text-gray-500 opacity-50"}`}
