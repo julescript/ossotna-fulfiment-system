@@ -2511,6 +2511,8 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                           subdomain={subdomainValue(selectedOrder)}
                           onSendCardPreview={handleSendCardPreview}
                           onSendToPrinter={handleSendToPrinter}
+                          orderName={selectedOrder.name}
+                          cardQuantity={getCardQuantityFromVariant(selectedOrder.line_items[0]?.variant_title || '')}
                         />
                       </div>
 
