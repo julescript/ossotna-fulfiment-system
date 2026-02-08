@@ -163,43 +163,74 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                 );
 
                 return (
+                  <React.Fragment key={order.id}>
+                  {/* ── Mobile Card ── */}
                   <div
-                    key={order.id}
-                    className={`grid ${GRID_COLS} border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${getRowBackgroundClass(order, storyStages, printablesStatuses, fulfillmentStatuses)} min-w-0 md:cursor-default cursor-pointer p-2`}
-                    onClick={() => { if (window.innerWidth < 768) handleOpenModal(order); }}
+                    className={`md:hidden flex gap-3 p-3 border-b border-gray-700 cursor-pointer active:brightness-125 ${getRowBackgroundClass(order, storyStages, printablesStatuses, fulfillmentStatuses)}`}
+                    onClick={() => handleOpenModal(order)}
                   >
-                    {/* Column 0: Order Number + Customer (mobile) + Print/Shopify (desktop) */}
-                    <div className="px-3 py-2 flex flex-col items-start">
-                      <span className="text-2xl font-bold text-white font-mono">{order.name}</span>
-                      {/* Mobile: show customer name, phone, story type */}
-                      <div className="md:hidden flex flex-col gap-0.5 mt-1">
-                        <span className="text-sm text-gray-300 font-medium">{order?.shipping_address?.first_name} {order?.shipping_address?.last_name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">{getPhoneNumber(order) || "No phone"}</span>
-                          {order?.shipping_address?.city && <span className="text-xs text-gray-500">• {order.shipping_address.city}</span>}
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {(() => {
-                            const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
-                            const lang = order.line_items[0].properties.find((p: any) => p.name === "story-language")?.value || "";
-                            let bgColor = "bg-gray-600";
-                            if (st.toLowerCase() === "mother") bgColor = "bg-purple-600";
-                            else if (st.toLowerCase() === "love") bgColor = "bg-red-600";
-                            else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-500";
-                            let langColor = "bg-gray-600";
-                            if (lang.toLowerCase() === "ar") langColor = "bg-amber-800";
-                            else if (lang.toLowerCase() === "en") langColor = "bg-green-800";
-                            else if (lang.toLowerCase() === "fr") langColor = "bg-blue-900";
-                            return <>
-                              <span className={`inline-block px-1.5 py-0.5 ${bgColor} rounded text-white text-[10px] font-bold`}>{st.toUpperCase()}</span>
-                              {lang && <span className={`inline-block px-1.5 py-0.5 ${langColor} rounded text-white text-[10px] font-bold`}>{lang.toUpperCase()}</span>}
-                            </>;
-                          })()}
-                          <span className="text-[10px] text-gray-400 italic">{order.line_items[0].variant_title}</span>
-                        </div>
+                    {/* Thumbnail (85.6×54 vertical card ratio) */}
+                    <div className="rounded-lg overflow-hidden bg-gray-700 flex-shrink-0" style={{ height: '134px', aspectRatio: '54/85.6' }}>
+                      {(() => {
+                        const imgProp = order.line_items[0]?.properties?.find((p: any) => p.name === "_original_view_2" && p.value);
+                        return <img src={imgProp ? imgProp.value : "/card-default.jpg"} alt="" className="w-full h-full object-cover" />;
+                      })()}
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-white font-mono">{order.name}</span>
+                        {(() => {
+                          const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
+                          const lang = order.line_items[0].properties.find((p: any) => p.name === "story-language")?.value || "";
+                          let bgColor = "bg-gray-600";
+                          if (st.toLowerCase() === "mother") bgColor = "bg-purple-600";
+                          else if (st.toLowerCase() === "love") bgColor = "bg-red-600";
+                          else if (st.toLowerCase() === "friendship") bgColor = "bg-blue-500";
+                          let langColor = "bg-gray-600";
+                          if (lang.toLowerCase() === "ar") langColor = "bg-amber-800";
+                          else if (lang.toLowerCase() === "en") langColor = "bg-green-800";
+                          else if (lang.toLowerCase() === "fr") langColor = "bg-blue-900";
+                          return <>
+                            <span className={`px-1.5 py-0.5 ${bgColor} rounded text-white text-[10px] font-bold`}>{st.toUpperCase()}</span>
+                            {lang && <span className={`px-1.5 py-0.5 ${langColor} rounded text-white text-[10px] font-bold`}>{lang.toUpperCase()}</span>}
+                          </>;
+                        })()}
                       </div>
+                      <div className="text-sm text-gray-300 truncate">{order?.shipping_address?.first_name} {order?.shipping_address?.last_name}{order?.shipping_address?.city ? ` • ${order.shipping_address.city}` : ''}</div>
+                      <div className="text-[10px] text-gray-400 italic truncate">{order.line_items[0].variant_title}</div>
+                      {/* Read-only statuses */}
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getStatusSelectClassName(storyStages[order.id] || "Pending")}`}>
+                          {storyStages[order.id] || "Pending"}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getPrintablesStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}>
+                          {printablesStatuses[order.id] || "Pending"}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getStatusSelectClassName(fulfillmentStatuses[order.id] || "New Order")}`}>
+                          {fulfillmentStatuses[order.id] || "New Order"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Desktop Row ── */}
+                  <div
+                    className={`hidden md:grid ${GRID_COLS} border-b border-gray-200 dark:border-gray-700 hover:brightness-110 ${getRowBackgroundClass(order, storyStages, printablesStatuses, fulfillmentStatuses)} min-w-0 cursor-default p-2`}
+                  >
+                    {/* Column 0: Thumbnail + Order Number + Customer + Print/Shopify (desktop) */}
+                    <div className="px-3 py-2 flex gap-3 items-start">
+                      {/* Desktop Thumbnail (85.6×54 vertical card ratio) */}
+                      <div className="rounded-lg overflow-hidden bg-gray-700 flex-shrink-0" style={{ height: '134px', aspectRatio: '54/85.6' }}>
+                        {(() => {
+                          const imgProp = order.line_items[0]?.properties?.find((p: any) => p.name === "_original_view_2" && p.value);
+                          return <img src={imgProp ? imgProp.value : "/card-default.jpg"} alt="" className="w-full h-full object-cover" />;
+                        })()}
+                      </div>
+                      <div className="flex flex-col items-start">
+                      <span className="text-2xl font-bold text-white font-mono">{order.name}</span>
                       {/* Desktop: customer info below order number */}
-                      <div className="hidden md:flex flex-col gap-0.5 mt-1 text-sm text-gray-300">
+                      <div className="flex flex-col gap-0.5 mt-1 text-sm text-gray-300">
                         <span className="font-medium">{order?.shipping_address?.first_name} {order?.shipping_address?.last_name}</span>
                         <div className="flex items-center gap-1.5 text-xs text-gray-400">
                           {order?.shipping_address?.city && <span>{order.shipping_address.city}</span>}
@@ -249,7 +280,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           )}
                         </div>
                       </div>
-                      <div className="hidden md:flex gap-1 mt-1.5">
+                      <div className="flex gap-1 mt-1.5">
                         <button
                           className="flex items-center gap-1 px-2.5 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition text-xs font-medium"
                           onClick={(e) => { e.stopPropagation(); handleOpenShopifyOrderPage(order); }}
@@ -267,10 +298,11 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           Print
                         </button>
                       </div>
+                      </div>
                     </div>
 
                     {/* Column 2: Product Properties */}
-                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300">
                       <div className="flex items-center gap-1 mb-1 flex-wrap">
                         {(() => {
                           const st = order.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "Standard";
@@ -331,7 +363,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 3: Subdomain Input & Actions */}
-                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300">
                       <label
                         htmlFor={`subdomain-${order.id}`}
                         className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1"
@@ -391,7 +423,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 4: Story */}
-                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300">
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Story</label>
                       <select
                         className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(storyStages[order.id] || "Pending")}`}
@@ -407,7 +439,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 5: Printables */}
-                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300">
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Printables</label>
                       <select
                         className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getPrintablesStatusSelectClassName(printablesStatuses[order.id] || "Pending")}`}
@@ -423,7 +455,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 6: Fulfillment */}
-                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300 hidden md:block">
+                    <div className="px-3 py-2 text-gray-800 dark:text-gray-300">
                       <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Fulfillment</label>
                       <select
                         className={`w-full p-2 border rounded text-gray-800 dark:text-gray-100 ${getStatusSelectClassName(fulfillmentStatuses[order.id] || "New Order")}`}
@@ -439,16 +471,9 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 7: Action Buttons */}
-                    <div className="hidden md:flex flex-col items-start justify-center gap-1.5 pl-5 pr-2 py-2">
-                      {/* Row 1: Story, Upload, Copy URLs */}
+                    <div className="flex flex-col gap-1 pl-5 pr-2 py-2 justify-center">
+                      {/* Row 1: Upload + Copy Images */}
                       <div className="flex gap-1">
-                        <button
-                          className="flex items-center justify-center w-10 h-10 rounded bg-purple-700 hover:bg-purple-600 text-white transition"
-                          onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); setSelectedOrder(order); setActiveModalTab("story"); setIsModalOpen(true); }}
-                          title="Generate Story"
-                        >
-                          <span className="material-symbols-outlined text-[22px]">auto_stories</span>
-                        </button>
                         <button
                           className={`flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 transition ${loadingOrders[order.id] ? "text-gray-500 cursor-not-allowed" : "text-green-400 hover:text-green-300"}`}
                           onClick={(e) => { e.stopPropagation(); handleProcessAndUploadImages(order); }}
@@ -466,8 +491,15 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           <span className="material-symbols-outlined text-[22px]">photo_library</span>
                         </button>
                       </div>
-                      {/* Row 2: Copy Props, Open Story, Open Story Localhost */}
+                      {/* Row 2: Story + Copy Props */}
                       <div className="flex gap-1">
+                        <button
+                          className="flex items-center justify-center w-10 h-10 rounded bg-purple-700 hover:bg-purple-600 text-white transition"
+                          onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); setSelectedOrder(order); setActiveModalTab("story"); setIsModalOpen(true); }}
+                          title="Generate Story"
+                        >
+                          <span className="material-symbols-outlined text-[22px]">auto_stories</span>
+                        </button>
                         <button
                           className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
                           onClick={(e) => { e.stopPropagation(); handleCopyProperties(order); }}
@@ -475,6 +507,9 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                         >
                           <span className="material-symbols-outlined text-[22px]">content_copy</span>
                         </button>
+                      </div>
+                      {/* Row 3: Open Story + Open Localhost */}
+                      <div className="flex gap-1">
                         <button
                           className="flex items-center justify-center w-10 h-10 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
                           onClick={(e) => { e.stopPropagation(); handleCopyPasswordAndOpenSubdomain(order); }}
@@ -504,7 +539,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     </div>
 
                     {/* Column 8: Order Detail Button (desktop only) */}
-                    <div className="px-1 py-1 hidden md:flex items-stretch justify-center">
+                    <div className="px-1 py-1 flex items-stretch justify-center">
                       <button
                         className="flex items-center justify-center w-12 h-full rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition"
                         onClick={(e) => { e.stopPropagation(); handleOpenModal(order); }}
@@ -514,6 +549,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                       </button>
                     </div>
                   </div>
+                  </React.Fragment>
                 );
               })}
             </div>

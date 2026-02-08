@@ -91,6 +91,10 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   const [currentScanOrder, setCurrentScanOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
   const [isFulfilling, setIsFulfilling] = useState(false);
+  const [tableFilter, setTableFilter] = useState<"all" | "new" | "edits" | "printing" | "ready" | "delivery">(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('userRole') === 'delivery') return 'delivery';
+    return 'all';
+  });
 
   // Statuses (new)
   const [storyStages, setStoryStages] = useState({});
@@ -1884,38 +1888,102 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           </button>
         </div>
 
-        {/* Limit Selector */}
-        <div className="mb-4 flex items-center gap-4">
-          <label htmlFor="limit" className="text-white">
-            Orders Fetched
-          </label>
-          <select
-            id="limit"
-            value={limit}
-            onChange={handleLimitChange}
-            className="p-2 bg-gray-600 text-white rounded border border-gray-500"
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="250">250</option>
-          </select>
+        {/* Limit Selector + Quick Filters */}
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label htmlFor="limit" className="text-white text-sm">
+              Orders Fetched
+            </label>
+            <select
+              id="limit"
+              value={limit}
+              onChange={handleLimitChange}
+              className="p-1.5 bg-gray-600 text-white rounded border border-gray-500 text-sm"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+            </select>
+          </div>
 
+          {(() => {
+            const counts = {
+              new: orders.filter(o => (storyStages[o.id] || "Pending") === "Pending" && (printablesStatuses[o.id] || "Pending") === "Pending" && (fulfillmentStatuses[o.id] || "New Order") === "New Order").length,
+              edits: orders.filter(o => (storyStages[o.id] || "Pending") === "Review").length,
+              printing: orders.filter(o => printablesStatuses[o.id] === "Printing").length,
+              ready: orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order").length,
+              delivery: orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery").length,
+            };
+            return <>
+              {/* Mobile: dropdown select */}
+              <select
+                value={tableFilter}
+                onChange={(e) => setTableFilter(e.target.value as any)}
+                className="md:hidden ml-auto p-1.5 bg-gray-600 text-white rounded border border-gray-500 text-sm"
+              >
+                <option value="all">All ({orders.length})</option>
+                {counts.new > 0 && <option value="new">New ({counts.new})</option>}
+                {counts.edits > 0 && <option value="edits">Edits ({counts.edits})</option>}
+                {counts.printing > 0 && <option value="printing">Printing ({counts.printing})</option>}
+                {counts.ready > 0 && <option value="ready">To Fulfill ({counts.ready})</option>}
+                {counts.delivery > 0 && <option value="delivery">Delivery ({counts.delivery})</option>}
+              </select>
 
-        </div>
-
-        {/* Order Count Display */}
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-white text-lg font-medium">Orders</h2>
-          <span className="text-gray-300 bg-gray-700 px-3 py-1 rounded-full text-sm">
-            {orders.length} {orders.length === 1 ? 'order' : 'orders'} showing
-          </span>
+              {/* Desktop: filter buttons */}
+              <div className="hidden md:flex flex-wrap items-center gap-1.5 ml-auto">
+                <button
+                  onClick={() => setTableFilter("all")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "all" ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-gray-300 hover:border-gray-500'}`}
+                >
+                  All ({orders.length})
+                </button>
+                {counts.new > 0 && <button
+                  onClick={() => setTableFilter("new")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "new" ? 'bg-purple-500 text-white border-purple-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-gray-300 hover:border-gray-500'}`}
+                >
+                  New ({counts.new})
+                </button>}
+                {counts.edits > 0 && <button
+                  onClick={() => setTableFilter("edits")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "edits" ? 'bg-orange-500 text-white border-orange-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-orange-300 hover:border-orange-700'}`}
+                >
+                  ✏️ Edits ({counts.edits})
+                </button>}
+                {counts.printing > 0 && <button
+                  onClick={() => setTableFilter("printing")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "printing" ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-yellow-300 hover:border-yellow-700'}`}
+                >
+                  🖨 Printing ({counts.printing})
+                </button>}
+                {counts.ready > 0 && <button
+                  onClick={() => setTableFilter("ready")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "ready" ? 'bg-green-500 text-white border-green-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-green-300 hover:border-green-700'}`}
+                >
+                  ✅ To Fulfill ({counts.ready})
+                </button>}
+                {counts.delivery > 0 && <button
+                  onClick={() => setTableFilter("delivery")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "delivery" ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-sky-300 hover:border-sky-700'}`}
+                >
+                  🚚 Delivery ({counts.delivery})
+                </button>}
+              </div>
+            </>;
+          })()}
         </div>
 
         {/* Main Table */}
         <OrdersTable
-          orders={orders}
+          orders={
+            tableFilter === "new" ? orders.filter(o => (storyStages[o.id] || "Pending") === "Pending" && (printablesStatuses[o.id] || "Pending") === "Pending" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
+            tableFilter === "edits" ? orders.filter(o => (storyStages[o.id] || "Pending") === "Review") :
+            tableFilter === "printing" ? orders.filter(o => printablesStatuses[o.id] === "Printing") :
+            tableFilter === "ready" ? orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
+            tableFilter === "delivery" ? orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery") :
+            orders
+          }
           isLoading={isLoading}
           subdomains={subdomains}
           toggledRows={toggledRows}

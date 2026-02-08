@@ -114,8 +114,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggleCollapsed }) => {
           ))}
         </div>
 
-        {/* Spacer */}
-        <div className="flex-1" />
+        {/* Spacer - desktop only, mobile flows directly */}
+        <div className="flex-1 hidden md:block" />
 
         {/* Bottom: version + logout */}
         <div className={`border-t border-gray-700 ${collapsed ? 'p-2' : 'p-3'} flex flex-col gap-2`}>
