@@ -156,6 +156,64 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
     page.drawSvgPath(pathData, { x, y, color });
   };
 
+  // Helper: get advance width for Arabic text glyph-by-glyph (bypasses broken GSUB in opentype.js)
+  const getArabicAdvanceWidth = (font, text, fontSize) => {
+    const fontScale = fontSize / font.unitsPerEm;
+    let width = 0;
+    for (const ch of text) {
+      const glyph = font.charToGlyph(ch);
+      width += glyph.advanceWidth * fontScale;
+    }
+    return width;
+  };
+
+  // Helper: wrap Arabic text using manual glyph width calculation
+  const wrapTextArabic = (text, font, fontSize, maxWidth) => {
+    const paragraphs = text.split('\n');
+    let lines = [];
+    for (let paragraph of paragraphs) {
+      const words = paragraph.split(' ');
+      let currentLine = '';
+      if (words.length === 1 && words[0] === '') {
+        lines.push('');
+        continue;
+      }
+      for (let word of words) {
+        const testLine = currentLine ? currentLine + ' ' + word : word;
+        const testLineWidth = getArabicAdvanceWidth(font, testLine, fontSize);
+        if (testLineWidth > maxWidth && currentLine !== '') {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+    }
+    return lines;
+  };
+
+  // Helper: draw Arabic text as vector outlines glyph-by-glyph (bypasses broken GSUB in opentype.js)
+  // Characters are reversed for RTL visual order: first logical char renders at the right.
+  const drawArabicAsVector = (page, font, text, x, y, fontSize, color) => {
+    const fontScale = fontSize / font.unitsPerEm;
+    const chars = [...text].reverse();
+    let cursorX = 0;
+    const allCommands = [];
+    for (const ch of chars) {
+      const glyph = font.charToGlyph(ch);
+      const glyphPath = glyph.getPath(cursorX, 0, fontSize);
+      allCommands.push(...glyphPath.commands);
+      cursorX += glyph.advanceWidth * fontScale;
+    }
+    const path = new opentype.Path();
+    path.commands = allCommands;
+    const pathData = path.toPathData();
+    if (pathData) {
+      page.drawSvgPath(pathData, { x, y, color });
+    }
+  };
+
   const generatePDF = async () => {
     setIsLoading(true);
     try {
@@ -181,18 +239,17 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const vollkornItalic = await opentype.load("/Vollkorn-Italic.ttf");
       const notoSansMono = await opentype.load("/NotoSansMono-Bold.ttf");
 
-      // Load Arabic fonts via pdf-lib (embedded) for reliable Arabic rendering.
-      // Note: opentype.js cannot be used for Arabic vector outlines because it doesn't support
-      // GSUB lookupType 5 substFormat 3 used by Noto Kufi Arabic font.
+      // Load Arabic fonts via opentype.js for vector outline rendering.
+      // We use glyph-by-glyph path building to bypass opentype.js's broken GSUB
+      // (lookupType 5 substFormat 3 not supported). ArabicReshaper already provides
+      // presentation form codepoints so no OpenType features are needed.
       const needsArabic = isArabic(title) || isArabic(milestoneDate) || isArabic(dedicationLine);
       let arabicBoldFont = null;
       let arabicRegularFont = null;
       if (needsArabic) {
         try {
-          const arabicBoldBytes = await fetch("/Noto_Kufi_Arabic/NotoKufiArabic-Bold.ttf").then(r => r.arrayBuffer());
-          const arabicRegularBytes = await fetch("/Noto_Kufi_Arabic/NotoKufiArabic-Regular.ttf").then(r => r.arrayBuffer());
-          arabicBoldFont = await pdfDoc.embedFont(arabicBoldBytes);
-          arabicRegularFont = await pdfDoc.embedFont(arabicRegularBytes);
+          arabicBoldFont = await opentype.load("/Noto_Kufi_Arabic/NotoKufiArabic-Bold.ttf");
+          arabicRegularFont = await opentype.load("/Noto_Kufi_Arabic/NotoKufiArabic-Regular.ttf");
           console.log("Arabic fonts loaded successfully");
         } catch (e) {
           console.error("Failed to load Arabic fonts:", e);
@@ -220,14 +277,14 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const maxTitleWidth = (2 / 3) * CARD_WIDTH;
       if (titleIsArabic) {
         const titleText = reshapeArabic(title);
-        const titleLines = wrapTextEmbedded(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
+        const titleLines = wrapTextArabic(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
         const lineHeight = titleFontSize * 1.4;
         const totalTitleHeight = titleLines.length * lineHeight;
         let currentY = (CARD_HEIGHT - totalTitleHeight) / 2 + totalTitleHeight - 10;
         titleLines.forEach((line) => {
-          const lineWidth = arabicBoldFont.widthOfTextAtSize(line, titleFontSize);
+          const lineWidth = getArabicAdvanceWidth(arabicBoldFont, line, titleFontSize);
           const lineX = (CARD_WIDTH - lineWidth) / 2;
-          page.drawText(line, { x: lineX, y: currentY, size: titleFontSize, font: arabicBoldFont, color: rgb(0.98, 0.98, 0.98) });
+          drawArabicAsVector(page, arabicBoldFont, line, lineX, currentY, titleFontSize, rgb(0.98, 0.98, 0.98));
           currentY -= lineHeight;
         });
       } else {
@@ -249,9 +306,9 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const milestoneY = CARD_HEIGHT - 33.5;
       if (dateIsArabic) {
         const dateText = reshapeArabic(milestoneDate);
-        const milestoneWidth = arabicRegularFont.widthOfTextAtSize(dateText, milestoneFontSize);
+        const milestoneWidth = getArabicAdvanceWidth(arabicRegularFont, dateText, milestoneFontSize);
         const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
-        page.drawText(dateText, { x: milestoneX, y: milestoneY, size: milestoneFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
+        drawArabicAsVector(page, arabicRegularFont, dateText, milestoneX, milestoneY, milestoneFontSize, rgb(0.98, 0.98, 0.98));
       } else {
         const milestoneWidth = vollkornRegular.getAdvanceWidth(milestoneDate, milestoneFontSize);
         const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
@@ -266,12 +323,12 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const maxDedicationWidth = (2 / 3) * CARD_WIDTH;
       if (dedicationIsArabic) {
         const dedicationText = reshapeArabic(dedicationLine);
-        const dedicationLines = wrapTextEmbedded(dedicationText, arabicRegularFont, dedicationFontSize, maxDedicationWidth);
+        const dedicationLines = wrapTextArabic(dedicationText, arabicRegularFont, dedicationFontSize, maxDedicationWidth);
         let currentY = dedicationBaseY + (dedicationLines.length - 1) * dedicationLineHeight;
         dedicationLines.forEach((line) => {
-          const lineWidth = arabicRegularFont.widthOfTextAtSize(line, dedicationFontSize);
+          const lineWidth = getArabicAdvanceWidth(arabicRegularFont, line, dedicationFontSize);
           const lineX = (CARD_WIDTH - lineWidth) / 2;
-          page.drawText(line, { x: lineX, y: currentY, size: dedicationFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
+          drawArabicAsVector(page, arabicRegularFont, line, lineX, currentY, dedicationFontSize, rgb(0.98, 0.98, 0.98));
           currentY -= dedicationLineHeight;
         });
       } else {
