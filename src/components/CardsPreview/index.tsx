@@ -181,14 +181,18 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const vollkornItalic = await opentype.load("/Vollkorn-Italic.ttf");
       const notoSansMono = await opentype.load("/NotoSansMono-Bold.ttf");
 
-      // Load Arabic fonts via opentype.js for vector outline rendering (same as English fonts).
+      // Load Arabic fonts via pdf-lib (embedded) for reliable Arabic rendering.
+      // Note: opentype.js cannot be used for Arabic vector outlines because it doesn't support
+      // GSUB lookupType 5 substFormat 3 used by Noto Kufi Arabic font.
       const needsArabic = isArabic(title) || isArabic(milestoneDate) || isArabic(dedicationLine);
       let arabicBoldFont = null;
       let arabicRegularFont = null;
       if (needsArabic) {
         try {
-          arabicBoldFont = await opentype.load("/Noto_Kufi_Arabic/NotoKufiArabic-Bold.ttf");
-          arabicRegularFont = await opentype.load("/Noto_Kufi_Arabic/NotoKufiArabic-Regular.ttf");
+          const arabicBoldBytes = await fetch("/Noto_Kufi_Arabic/NotoKufiArabic-Bold.ttf").then(r => r.arrayBuffer());
+          const arabicRegularBytes = await fetch("/Noto_Kufi_Arabic/NotoKufiArabic-Regular.ttf").then(r => r.arrayBuffer());
+          arabicBoldFont = await pdfDoc.embedFont(arabicBoldBytes);
+          arabicRegularFont = await pdfDoc.embedFont(arabicRegularBytes);
           console.log("Arabic fonts loaded successfully");
         } catch (e) {
           console.error("Failed to load Arabic fonts:", e);
@@ -216,14 +220,14 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const maxTitleWidth = (2 / 3) * CARD_WIDTH;
       if (titleIsArabic) {
         const titleText = reshapeArabic(title);
-        const titleLines = wrapText(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
+        const titleLines = wrapTextEmbedded(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
         const lineHeight = titleFontSize * 1.4;
         const totalTitleHeight = titleLines.length * lineHeight;
         let currentY = (CARD_HEIGHT - totalTitleHeight) / 2 + totalTitleHeight - 10;
         titleLines.forEach((line) => {
-          const lineWidth = arabicBoldFont.getAdvanceWidth(line, titleFontSize);
+          const lineWidth = arabicBoldFont.widthOfTextAtSize(line, titleFontSize);
           const lineX = (CARD_WIDTH - lineWidth) / 2;
-          drawTextAsVector(page, arabicBoldFont, line, lineX, currentY, titleFontSize, rgb(0.98, 0.98, 0.98));
+          page.drawText(line, { x: lineX, y: currentY, size: titleFontSize, font: arabicBoldFont, color: rgb(0.98, 0.98, 0.98) });
           currentY -= lineHeight;
         });
       } else {
@@ -245,9 +249,9 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const milestoneY = CARD_HEIGHT - 33.5;
       if (dateIsArabic) {
         const dateText = reshapeArabic(milestoneDate);
-        const milestoneWidth = arabicRegularFont.getAdvanceWidth(dateText, milestoneFontSize);
+        const milestoneWidth = arabicRegularFont.widthOfTextAtSize(dateText, milestoneFontSize);
         const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
-        drawTextAsVector(page, arabicRegularFont, dateText, milestoneX, milestoneY, milestoneFontSize, rgb(0.98, 0.98, 0.98));
+        page.drawText(dateText, { x: milestoneX, y: milestoneY, size: milestoneFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
       } else {
         const milestoneWidth = vollkornRegular.getAdvanceWidth(milestoneDate, milestoneFontSize);
         const milestoneX = (CARD_WIDTH - milestoneWidth) / 2;
@@ -262,12 +266,12 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
       const maxDedicationWidth = (2 / 3) * CARD_WIDTH;
       if (dedicationIsArabic) {
         const dedicationText = reshapeArabic(dedicationLine);
-        const dedicationLines = wrapText(dedicationText, arabicRegularFont, dedicationFontSize, maxDedicationWidth);
+        const dedicationLines = wrapTextEmbedded(dedicationText, arabicRegularFont, dedicationFontSize, maxDedicationWidth);
         let currentY = dedicationBaseY + (dedicationLines.length - 1) * dedicationLineHeight;
         dedicationLines.forEach((line) => {
-          const lineWidth = arabicRegularFont.getAdvanceWidth(line, dedicationFontSize);
+          const lineWidth = arabicRegularFont.widthOfTextAtSize(line, dedicationFontSize);
           const lineX = (CARD_WIDTH - lineWidth) / 2;
-          drawTextAsVector(page, arabicRegularFont, line, lineX, currentY, dedicationFontSize, rgb(0.98, 0.98, 0.98));
+          page.drawText(line, { x: lineX, y: currentY, size: dedicationFontSize, font: arabicRegularFont, color: rgb(0.98, 0.98, 0.98) });
           currentY -= dedicationLineHeight;
         });
       } else {

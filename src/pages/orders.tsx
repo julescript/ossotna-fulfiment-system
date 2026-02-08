@@ -1924,11 +1924,11 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 className="md:hidden ml-auto p-1.5 bg-gray-600 text-white rounded border border-gray-500 text-sm"
               >
                 <option value="all">All ({orders.length})</option>
-                {counts.new > 0 && <option value="new">New ({counts.new})</option>}
-                {counts.edits > 0 && <option value="edits">Edits ({counts.edits})</option>}
-                {counts.printing > 0 && <option value="printing">Printing ({counts.printing})</option>}
-                {counts.ready > 0 && <option value="ready">To Fulfill ({counts.ready})</option>}
-                {counts.delivery > 0 && <option value="delivery">Delivery ({counts.delivery})</option>}
+                {(counts.new > 0 || tableFilter === "new") && <option value="new">New ({counts.new})</option>}
+                {(counts.edits > 0 || tableFilter === "edits") && <option value="edits">Edits ({counts.edits})</option>}
+                {(counts.printing > 0 || tableFilter === "printing") && <option value="printing">Printing ({counts.printing})</option>}
+                {(counts.ready > 0 || tableFilter === "ready") && <option value="ready">To Fulfill ({counts.ready})</option>}
+                {(counts.delivery > 0 || tableFilter === "delivery") && <option value="delivery">Delivery ({counts.delivery})</option>}
               </select>
 
               {/* Desktop: filter buttons */}
@@ -1939,31 +1939,31 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 >
                   All ({orders.length})
                 </button>
-                {counts.new > 0 && <button
+                {(counts.new > 0 || tableFilter === "new") && <button
                   onClick={() => setTableFilter("new")}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "new" ? 'bg-purple-500 text-white border-purple-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-gray-300 hover:border-gray-500'}`}
                 >
                   New ({counts.new})
                 </button>}
-                {counts.edits > 0 && <button
+                {(counts.edits > 0 || tableFilter === "edits") && <button
                   onClick={() => setTableFilter("edits")}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "edits" ? 'bg-orange-500 text-white border-orange-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-orange-300 hover:border-orange-700'}`}
                 >
                   ✏️ Edits ({counts.edits})
                 </button>}
-                {counts.printing > 0 && <button
+                {(counts.printing > 0 || tableFilter === "printing") && <button
                   onClick={() => setTableFilter("printing")}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "printing" ? 'bg-yellow-500 text-white border-yellow-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-yellow-300 hover:border-yellow-700'}`}
                 >
                   🖨 Printing ({counts.printing})
                 </button>}
-                {counts.ready > 0 && <button
+                {(counts.ready > 0 || tableFilter === "ready") && <button
                   onClick={() => setTableFilter("ready")}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "ready" ? 'bg-green-500 text-white border-green-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-green-300 hover:border-green-700'}`}
                 >
                   ✅ To Fulfill ({counts.ready})
                 </button>}
-                {counts.delivery > 0 && <button
+                {(counts.delivery > 0 || tableFilter === "delivery") && <button
                   onClick={() => setTableFilter("delivery")}
                   className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "delivery" ? 'bg-sky-500 text-white border-sky-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-sky-300 hover:border-sky-700'}`}
                 >
