@@ -468,6 +468,15 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                           </option>
                         ))}
                       </select>
+                      {order.tags && order.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {order.tags.map((tag: string) => (
+                            <span key={tag} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Column 7: Action Buttons */}

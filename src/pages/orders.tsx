@@ -94,7 +94,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   const [currentScanOrder, setCurrentScanOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
   const [isFulfilling, setIsFulfilling] = useState(false);
-  const [tableFilter, setTableFilter] = useState<"all" | "new" | "edits" | "printing" | "ready" | "delivery">(() => {
+  const [tableFilter, setTableFilter] = useState<"all" | "new" | "edits" | "printing" | "ready" | "delivery" | "sent">(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('userRole') === 'delivery') return 'delivery';
     return 'all';
   });
@@ -1925,7 +1925,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 await fetch('/api/shopify/removeTag', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderId: order.id, tags: ['READY FOR DELIVERY', 'DELIVERED', 'WAKILNI', 'UNIPARCEL', 'ROADRUNNER'] }),
+                  body: JSON.stringify({ orderId: order.id, tags: ['READY FOR DELIVERY', 'DELIVERED', 'WAKILNI', 'UNIPARCEL', 'ROADRUNNER', 'OSSDRIVER'] }),
                 });
                 const tagsToAdd = ['SENT FOR DELIVERY'];
                 if (selectedDeliveryProvider) tagsToAdd.push(selectedDeliveryProvider);
@@ -2092,6 +2092,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
               printing: orders.filter(o => printablesStatuses[o.id] === "Printing").length,
               ready: orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order").length,
               delivery: orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery").length,
+              sent: orders.filter(o => fulfillmentStatuses[o.id] === "Sent For Delivery").length,
             };
             return <>
               {/* Mobile: dropdown select */}
@@ -2106,6 +2107,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 {(counts.printing > 0 || tableFilter === "printing") && <option value="printing">Printing ({counts.printing})</option>}
                 {(counts.ready > 0 || tableFilter === "ready") && <option value="ready">To Fulfill ({counts.ready})</option>}
                 {(counts.delivery > 0 || tableFilter === "delivery") && <option value="delivery">Delivery ({counts.delivery})</option>}
+                {(counts.sent > 0 || tableFilter === "sent") && <option value="sent">Sent ({counts.sent})</option>}
               </select>
 
               {/* Desktop: filter buttons */}
@@ -2146,6 +2148,12 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 >
                   🚚 Delivery ({counts.delivery})
                 </button>}
+                {(counts.sent > 0 || tableFilter === "sent") && <button
+                  onClick={() => setTableFilter("sent")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "sent" ? 'bg-orange-500 text-white border-orange-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-orange-300 hover:border-orange-700'}`}
+                >
+                  📦 Sent ({counts.sent})
+                </button>}
               </div>
             </>;
           })()}
@@ -2159,6 +2167,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
             tableFilter === "printing" ? orders.filter(o => printablesStatuses[o.id] === "Printing") :
             tableFilter === "ready" ? orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
             tableFilter === "delivery" ? orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery") :
+            tableFilter === "sent" ? orders.filter(o => fulfillmentStatuses[o.id] === "Sent For Delivery") :
             orders
           }
           isLoading={isLoading}
@@ -3107,7 +3116,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full mx-4 p-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 text-center">Select Delivery Provider</h3>
             <div className="flex flex-col gap-3">
-              {['WAKILNI', 'UNIPARCEL', 'ROADRUNNER'].map((provider) => (
+              {['WAKILNI', 'UNIPARCEL', 'ROADRUNNER', 'OSSDRIVER'].map((provider) => (
                 <button
                   key={provider}
                   onClick={() => {
