@@ -303,7 +303,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     setShowFulfillConfirmation(true);
   };
 
-  // Mark order as paid + update fulfillment status to "Delivered"
+  // Mark order as delivered: fulfill in Shopify + mark as paid + update status + add tag
   const confirmFulfillOrder = async () => {
     if (!orderToFulfill) return;
 
@@ -311,28 +311,62 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       setIsFulfilling(true);
       setShowFulfillConfirmation(false);
 
-      // Mark as paid in Shopify
-      const response = await fetch('/api/shopify/fulfillment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: orderToFulfill.id,
-          action: 'markPaid'
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast.success('Order marked as delivered & paid!');
-        // Update local fulfillment status to "Delivered"
-        handleFulfillmentStatusChange(orderToFulfill.id, "Delivered");
-        // Refresh orders
-        fetchOrders(limit);
-      } else {
-        toast.error(`Failed to mark as paid: ${data.error || 'Unknown error'}`);
-        console.error('Mark paid error:', data.details || 'No details');
+      // 1) Fulfill the order in Shopify (no customer notification)
+      try {
+        const fulfillRes = await fetch('/api/shopify/fulfillment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderToFulfill.id, action: 'fulfill' }),
+        });
+        const fulfillData = await fulfillRes.json();
+        if (fulfillData.success) {
+          console.log('Order fulfilled in Shopify');
+        } else {
+          console.warn('Shopify fulfillment warning:', fulfillData.error);
+        }
+      } catch (err) {
+        console.error('Error fulfilling order in Shopify:', err);
       }
+
+      // 2) Mark as paid in Shopify
+      try {
+        const paidRes = await fetch('/api/shopify/fulfillment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderToFulfill.id, action: 'markPaid' }),
+        });
+        const paidData = await paidRes.json();
+        if (paidData.success) {
+          console.log('Order marked as paid in Shopify');
+        } else {
+          console.warn('Shopify mark paid warning:', paidData.error);
+        }
+      } catch (err) {
+        console.error('Error marking order as paid in Shopify:', err);
+      }
+
+      // 3) Remove stale delivery tags, then add DELIVERED tag in Shopify
+      try {
+        await fetch('/api/shopify/removeTag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderToFulfill.id, tags: ['READY FOR DELIVERY', 'SENT FOR DELIVERY'] }),
+        });
+        await fetch('/api/shopify/addTag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: orderToFulfill.id, tag: 'DELIVERED' }),
+        });
+      } catch (err) {
+        console.error('Error syncing DELIVERED tag:', err);
+      }
+
+      // 4) Update local fulfillment status to "Delivered"
+      setFulfillmentStatuses((prev) => ({ ...prev, [orderToFulfill.id]: "Delivered" }));
+      await saveMetafieldAPI(orderToFulfill.id, "fulfillment-status", "single_line_text_field", "Delivered");
+
+      toast.success('Order marked as delivered, fulfilled & paid!');
+      fetchOrders(limit);
     } catch (error) {
       console.error('Error marking order as delivered:', error);
       toast.error('Error marking order as delivered');
@@ -1190,23 +1224,47 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     setLimit(newLimit > 250 ? 250 : newLimit); // Shopify max limit is 250
   };
 
+  const DELIVERY_TAGS = ['READY FOR DELIVERY', 'SENT FOR DELIVERY', 'DELIVERED'];
+  const STATUS_TO_TAG: Record<string, string> = {
+    'Ready For Delivery': 'READY FOR DELIVERY',
+    'Sent For Delivery': 'SENT FOR DELIVERY',
+    'Delivered': 'DELIVERED',
+  };
+
   const handleFulfillmentStatusChange = async (orderId, newStatus) => {
     setFulfillmentStatuses((prev) => ({ ...prev, [orderId]: newStatus }));
     try {
       await saveMetafieldAPI(orderId, "fulfillment-status", "single_line_text_field", newStatus);
       toast.success("Fulfillment status updated successfully!", { autoClose: 2000 });
 
-      // When set to "Ready For Delivery", add tag in Shopify
-      if (newStatus === "Ready For Delivery") {
+      // Sync tags in Shopify: remove all old delivery tags, then add the correct one
+      const newTag = STATUS_TO_TAG[newStatus];
+      const tagsToRemove = DELIVERY_TAGS.filter(t => t !== newTag);
+
+      // Remove stale tags
+      if (tagsToRemove.length > 0) {
+        try {
+          await fetch('/api/shopify/removeTag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId, tags: tagsToRemove }),
+          });
+        } catch (err) {
+          console.error("Error removing old tags:", err);
+        }
+      }
+
+      // Add the new tag (if status maps to one)
+      if (newTag) {
         try {
           const response = await fetch('/api/shopify/addTag', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId, tag: 'READY FOR DELIVERY' }),
+            body: JSON.stringify({ orderId, tag: newTag }),
           });
           const data = await response.json();
           if (data.success) {
-            toast.info("Order tagged as READY FOR DELIVERY in Shopify", { autoClose: 3000 });
+            toast.info(`Order tagged as ${newTag} in Shopify`, { autoClose: 3000 });
           } else {
             console.warn("Shopify tag warning:", data.error);
           }
@@ -1751,7 +1809,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           setCurrentScanOrder(order);
           setScanStatus("loading");
 
-          // Update the metafield status and add tag in Shopify
+          // Update the metafield status and sync tags in Shopify
           saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Ready For Delivery")
             .then(async () => {
               // Update local state
@@ -1760,21 +1818,21 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 [order.id]: "Ready For Delivery",
               }));
 
-              // Add READY FOR DELIVERY tag in Shopify
+              // Remove stale delivery tags, then add the correct one
               try {
-                const response = await fetch('/api/shopify/addTag', {
+                await fetch('/api/shopify/removeTag', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId: order.id, tags: ['SENT FOR DELIVERY', 'DELIVERED'] }),
+                });
+                await fetch('/api/shopify/addTag', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ orderId: order.id, tag: 'READY FOR DELIVERY' }),
                 });
-                const data = await response.json();
-                if (data.success) {
-                  console.log("Order tagged as READY FOR DELIVERY in Shopify via scan");
-                } else {
-                  console.warn("Shopify tag warning:", data.error);
-                }
+                console.log("Order tagged as READY FOR DELIVERY in Shopify via scan");
               } catch (err) {
-                console.error("Error adding tag in Shopify:", err);
+                console.error("Error syncing tags in Shopify:", err);
               }
 
               // Show success state
@@ -1902,6 +1960,42 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           >
             <span className="material-symbols-outlined text-[20px]">local_shipping</span>
             <span className="font-medium">Mark Ready for Delivery</span>
+          </button>
+          <button
+            onClick={async () => {
+              // Prompt for order name or ID
+              const input = prompt("Enter order name or ID to mark as Sent for Delivery:");
+              if (!input) return;
+              const order = orders.find(o => o.name === input.trim() || o.id === input.trim() || o.name === `#${input.trim()}`);
+              if (!order) {
+                toast.error("Order not found");
+                return;
+              }
+              try {
+                // Update metafield
+                await saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Sent For Delivery");
+                setFulfillmentStatuses((prev) => ({ ...prev, [order.id]: "Sent For Delivery" }));
+                // Remove stale tags, then add the correct one
+                await fetch('/api/shopify/removeTag', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId: order.id, tags: ['READY FOR DELIVERY', 'DELIVERED'] }),
+                });
+                await fetch('/api/shopify/addTag', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId: order.id, tag: 'SENT FOR DELIVERY' }),
+                });
+                toast.success(`${order.name} marked as Sent for Delivery`);
+              } catch (err) {
+                console.error("Error marking as sent for delivery:", err);
+                toast.error("Failed to update order");
+              }
+            }}
+            className="p-3 bg-orange-600 text-white rounded-md hover:bg-orange-700 w-full flex items-center justify-center gap-2 transition-colors border border-orange-500"
+          >
+            <span className="material-symbols-outlined text-[20px]">delivery_truck_speed</span>
+            <span className="font-medium">Sent for Delivery</span>
           </button>
         </div>
 
@@ -2948,7 +3042,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Confirm Delivery</h3>
 
             <div className="mb-6 text-gray-700 dark:text-gray-300">
-              <p className="mb-4">Are you sure you want to mark this order as delivered & paid?</p>
+              <p className="mb-4">Are you sure you want to mark this order as <strong>delivered</strong>? This will fulfill the order, mark it as paid, and add a DELIVERED tag in Shopify.</p>
 
               <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-md mb-4">
                 <p className="font-medium mb-2">Order Details:</p>
