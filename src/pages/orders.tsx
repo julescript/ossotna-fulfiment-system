@@ -88,6 +88,9 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     };
   }, []);
   const [isDeliveryScanOpen, setIsDeliveryScanOpen] = useState(false);
+  const [isSentForDeliveryScanOpen, setIsSentForDeliveryScanOpen] = useState(false);
+  const [showDeliveryProviderSelect, setShowDeliveryProviderSelect] = useState(false);
+  const [selectedDeliveryProvider, setSelectedDeliveryProvider] = useState<string | null>(null);
   const [currentScanOrder, setCurrentScanOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
   const [isFulfilling, setIsFulfilling] = useState(false);
@@ -1885,6 +1888,98 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     toast.error("Failed to access camera for delivery scanning", { autoClose: 2000 });
   };
 
+  /**
+   * Handler for scanning order labels to mark as Sent for Delivery
+   */
+  const handleSentForDeliveryScan = (detectedCodes) => {
+    if (detectedCodes && detectedCodes.length > 0 && scanStatus === "ready") {
+      try {
+        const data = detectedCodes[0].rawValue;
+        console.log("Sent for delivery scan data:", data);
+
+        let orderId;
+        try {
+          const url = new URL(data);
+          const pathSegments = url.pathname.split('/');
+          orderId = pathSegments[pathSegments.length - 1];
+        } catch {
+          orderId = data.trim();
+        }
+
+        console.log("Extracted order ID for sent for delivery:", orderId);
+        const order = orders.find(o => o.id === String(orderId) || o.name === String(orderId));
+
+        if (order) {
+          setCurrentScanOrder(order);
+          setScanStatus("loading");
+
+          saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Sent For Delivery")
+            .then(async () => {
+              setFulfillmentStatuses((prev) => ({
+                ...prev,
+                [order.id]: "Sent For Delivery",
+              }));
+
+              // Remove stale tags, then add SENT FOR DELIVERY + provider tag
+              try {
+                await fetch('/api/shopify/removeTag', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId: order.id, tags: ['READY FOR DELIVERY', 'DELIVERED', 'WAKILNI', 'UNIPARCEL', 'ROADRUNNER'] }),
+                });
+                const tagsToAdd = ['SENT FOR DELIVERY'];
+                if (selectedDeliveryProvider) tagsToAdd.push(selectedDeliveryProvider);
+                for (const tag of tagsToAdd) {
+                  await fetch('/api/shopify/addTag', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ orderId: order.id, tag }),
+                  });
+                }
+                console.log(`Order tagged as SENT FOR DELIVERY (${selectedDeliveryProvider}) in Shopify via scan`);
+              } catch (err) {
+                console.error("Error syncing tags in Shopify:", err);
+              }
+
+              setScanStatus("success");
+              setTimeout(() => {
+                setScanStatus("ready");
+                setCurrentScanOrder(null);
+              }, 2000);
+            })
+            .catch(error => {
+              console.error("Error updating order status:", error);
+              setScanStatus("error");
+              setTimeout(() => {
+                setScanStatus("ready");
+                setCurrentScanOrder(null);
+              }, 2000);
+            });
+        } else {
+          setScanStatus("error");
+          setCurrentScanOrder({ name: "Unknown Order", error: "Order not found" });
+          setTimeout(() => {
+            setScanStatus("ready");
+            setCurrentScanOrder(null);
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("Error processing scanned QR code:", error);
+        setScanStatus("error");
+        setCurrentScanOrder({ name: "Error", error: "Invalid QR code format" });
+        setTimeout(() => {
+          setScanStatus("ready");
+          setCurrentScanOrder(null);
+        }, 2000);
+      }
+    }
+  };
+
+  const handleSentForDeliveryError = (err) => {
+    console.error("Error scanning for sent for delivery:", err);
+    toast.error("Failed to access camera for scanning", { autoClose: 2000 });
+  };
+
   // Handler to open Shopify order page
   const handleOpenShopifyOrderPage = (order) => {
     const shopifyAdminBaseURL = "https://admin.shopify.com/store/83637c-4/orders"; // Replace with your actual Shopify admin URL
@@ -1962,36 +2057,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
             <span className="font-medium">Mark Ready for Delivery</span>
           </button>
           <button
-            onClick={async () => {
-              // Prompt for order name or ID
-              const input = prompt("Enter order name or ID to mark as Sent for Delivery:");
-              if (!input) return;
-              const order = orders.find(o => o.name === input.trim() || o.id === input.trim() || o.name === `#${input.trim()}`);
-              if (!order) {
-                toast.error("Order not found");
-                return;
-              }
-              try {
-                // Update metafield
-                await saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Sent For Delivery");
-                setFulfillmentStatuses((prev) => ({ ...prev, [order.id]: "Sent For Delivery" }));
-                // Remove stale tags, then add the correct one
-                await fetch('/api/shopify/removeTag', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderId: order.id, tags: ['READY FOR DELIVERY', 'DELIVERED'] }),
-                });
-                await fetch('/api/shopify/addTag', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderId: order.id, tag: 'SENT FOR DELIVERY' }),
-                });
-                toast.success(`${order.name} marked as Sent for Delivery`);
-              } catch (err) {
-                console.error("Error marking as sent for delivery:", err);
-                toast.error("Failed to update order");
-              }
-            }}
+            onClick={() => setShowDeliveryProviderSelect(true)}
             className="p-3 bg-orange-600 text-white rounded-md hover:bg-orange-700 w-full flex items-center justify-center gap-2 transition-colors border border-orange-500"
           >
             <span className="material-symbols-outlined text-[20px]">delivery_truck_speed</span>
@@ -3026,6 +3092,91 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
             {/* Close Button */}
             <button
               onClick={() => setIsDeliveryScanOpen(false)}
+              className="w-full p-4 mt-3 bg-gray-900 text-white font-medium text-lg rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
+              title="Close Scanner"
+            >
+              CLOSE
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Provider Selection Modal */}
+      {showDeliveryProviderSelect && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full mx-4 p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 text-center">Select Delivery Provider</h3>
+            <div className="flex flex-col gap-3">
+              {['WAKILNI', 'UNIPARCEL', 'ROADRUNNER'].map((provider) => (
+                <button
+                  key={provider}
+                  onClick={() => {
+                    setSelectedDeliveryProvider(provider);
+                    setShowDeliveryProviderSelect(false);
+                    setIsSentForDeliveryScanOpen(true);
+                  }}
+                  className="p-4 bg-orange-600 hover:bg-orange-700 text-white rounded-md font-bold text-lg transition-colors"
+                >
+                  {provider}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowDeliveryProviderSelect(false)}
+              className="w-full mt-4 p-3 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-white rounded-md font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sent for Delivery Scan Modal */}
+      {isSentForDeliveryScanOpen && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            {/* QR Scanner Container */}
+            <div className="relative bg-white dark:bg-gray-800 p-5 rounded-md shadow-xl border border-gray-300 dark:border-gray-600">
+              {/* Provider Badge */}
+              {selectedDeliveryProvider && (
+                <div className="mb-3 text-center">
+                  <span className="inline-block px-4 py-1.5 bg-orange-600 text-white rounded-full font-bold text-sm">{selectedDeliveryProvider}</span>
+                </div>
+              )}
+
+              <p className="mb-4 text-center text-gray-900 dark:text-white font-medium text-lg">
+                {scanStatus === "ready" ? "Scan label to mark as Sent for Delivery" :
+                  scanStatus === "loading" ? `Processing Order ${currentScanOrder?.name || ''}...` :
+                    scanStatus === "success" ? `Order ${currentScanOrder?.name || ''} marked as Sent for Delivery` :
+                      `Error: ${currentScanOrder?.error || 'Unknown error'}`}
+              </p>
+
+              {/* Status Indicator */}
+              {scanStatus !== "ready" && (
+                <div className={`mb-4 p-3 rounded-md text-center font-medium ${scanStatus === "loading" ? "bg-blue-100 text-blue-800 border border-blue-200" :
+                  scanStatus === "success" ? "bg-orange-100 text-orange-800 border border-orange-200" :
+                    "bg-red-100 text-red-800 border border-red-200"}`}>
+                  {scanStatus === "loading" && "Updating order status..."}
+                  {scanStatus === "success" && "Success! Ready for next scan..."}
+                  {scanStatus === "error" && "Error! Try again..."}
+                </div>
+              )}
+
+              {/* QR Scanner */}
+              <div className="relative border-2 border-gray-300 dark:border-gray-600 rounded-md overflow-hidden" style={{ width: '300px', height: '300px' }}>
+                <Scanner
+                  onScan={handleSentForDeliveryScan}
+                  onError={handleSentForDeliveryError}
+                  constraints={{ facingMode: 'environment' }}
+                  scanDelay={300}
+                  styles={{ container: { width: '100%', height: '100%' } }}
+                />
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => { setIsSentForDeliveryScanOpen(false); setSelectedDeliveryProvider(null); }}
               className="w-full p-4 mt-3 bg-gray-900 text-white font-medium text-lg rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"
               title="Close Scanner"
             >
