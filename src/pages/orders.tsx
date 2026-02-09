@@ -1196,22 +1196,22 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       await saveMetafieldAPI(orderId, "fulfillment-status", "single_line_text_field", newStatus);
       toast.success("Fulfillment status updated successfully!", { autoClose: 2000 });
 
-      // When set to "Ready For Delivery", auto-trigger Shopify fulfillment (no email, no tracking)
+      // When set to "Ready For Delivery", add tag in Shopify
       if (newStatus === "Ready For Delivery") {
         try {
-          const response = await fetch('/api/shopify/fulfillment', {
+          const response = await fetch('/api/shopify/addTag', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId, action: 'fulfill' }),
+            body: JSON.stringify({ orderId, tag: 'READY FOR DELIVERY' }),
           });
           const data = await response.json();
           if (data.success) {
-            toast.info("Order marked as fulfilled in Shopify (no notification sent)", { autoClose: 3000 });
+            toast.info("Order tagged as READY FOR DELIVERY in Shopify", { autoClose: 3000 });
           } else {
-            console.warn("Shopify fulfillment warning:", data.error);
+            console.warn("Shopify tag warning:", data.error);
           }
         } catch (err) {
-          console.error("Error auto-fulfilling in Shopify:", err);
+          console.error("Error adding tag in Shopify:", err);
         }
       }
     } catch (error) {
@@ -1751,7 +1751,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           setCurrentScanOrder(order);
           setScanStatus("loading");
 
-          // Update the metafield status and also mark as fulfilled in Shopify
+          // Update the metafield status and add tag in Shopify
           saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Ready For Delivery")
             .then(async () => {
               // Update local state
@@ -1760,21 +1760,21 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 [order.id]: "Ready For Delivery",
               }));
 
-              // Also trigger Shopify fulfillment
+              // Add READY FOR DELIVERY tag in Shopify
               try {
-                const response = await fetch('/api/shopify/fulfillment', {
+                const response = await fetch('/api/shopify/addTag', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderId: order.id, action: 'fulfill' }),
+                  body: JSON.stringify({ orderId: order.id, tag: 'READY FOR DELIVERY' }),
                 });
                 const data = await response.json();
                 if (data.success) {
-                  console.log("Order marked as fulfilled in Shopify via scan");
+                  console.log("Order tagged as READY FOR DELIVERY in Shopify via scan");
                 } else {
-                  console.warn("Shopify fulfillment warning:", data.error);
+                  console.warn("Shopify tag warning:", data.error);
                 }
               } catch (err) {
-                console.error("Error auto-fulfilling in Shopify:", err);
+                console.error("Error adding tag in Shopify:", err);
               }
 
               // Show success state
