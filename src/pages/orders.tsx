@@ -1751,14 +1751,31 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           setCurrentScanOrder(order);
           setScanStatus("loading");
 
-          // Only update the metafield status without creating a fulfillment
+          // Update the metafield status and also mark as fulfilled in Shopify
           saveMetafieldAPI(order.id, "fulfillment-status", "single_line_text_field", "Ready For Delivery")
-            .then(() => {
+            .then(async () => {
               // Update local state
               setFulfillmentStatuses((prev) => ({
                 ...prev,
                 [order.id]: "Ready For Delivery",
               }));
+
+              // Also trigger Shopify fulfillment
+              try {
+                const response = await fetch('/api/shopify/fulfillment', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderId: order.id, action: 'fulfill' }),
+                });
+                const data = await response.json();
+                if (data.success) {
+                  console.log("Order marked as fulfilled in Shopify via scan");
+                } else {
+                  console.warn("Shopify fulfillment warning:", data.error);
+                }
+              } catch (err) {
+                console.error("Error auto-fulfilling in Shopify:", err);
+              }
 
               // Show success state
               setScanStatus("success");
