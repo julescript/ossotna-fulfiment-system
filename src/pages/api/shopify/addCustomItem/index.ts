@@ -54,9 +54,12 @@ export default async function handler(req, res) {
     const calculatedOrderId = beginData.data.orderEditBegin.calculatedOrder.id;
 
     // 2. Add Custom Line Item
-    const addLineItemMutation = `
-      mutation orderEditAddLineItem($id: ID!, $title: String!, $price: Money!) {
-        orderEditAddLineItem(id: $id, title: $title, price: $price, quantity: 1, requiresShipping: false) {
+    const addCustomItemMutation = `
+      mutation orderEditAddCustomItem($id: ID!, $title: String!, $price: MoneyInput!, $quantity: Int!) {
+        orderEditAddCustomItem(id: $id, title: $title, price: $price, quantity: $quantity, requiresShipping: false, taxable: false) {
+          calculatedLineItem {
+            id
+          }
           calculatedOrder {
             id
           }
@@ -68,14 +71,18 @@ export default async function handler(req, res) {
       }
     `;
 
-    const addLineItemResponse = await axios.post(
+    const addCustomItemResponse = await axios.post(
       `${config.shopify.adminApiEndpoint}/graphql.json`,
       {
-        query: addLineItemMutation,
+        query: addCustomItemMutation,
         variables: {
           id: calculatedOrderId,
           title: customItem.title,
-          price: customItem.price,
+          price: {
+            amount: customItem.price,
+            currencyCode: customItem.currencyCode || "USD",
+          },
+          quantity: 1,
         },
       },
       {
@@ -86,9 +93,9 @@ export default async function handler(req, res) {
       }
     );
 
-    const { data: addData } = addLineItemResponse;
-    if (addData.errors || addData.data.orderEditAddLineItem.userErrors.length > 0) {
-      throw new Error(addData.errors?.[0]?.message || addData.data.orderEditAddLineItem.userErrors[0].message);
+    const { data: addData } = addCustomItemResponse;
+    if (addData.errors || addData.data.orderEditAddCustomItem.userErrors.length > 0) {
+      throw new Error(addData.errors?.[0]?.message || addData.data.orderEditAddCustomItem.userErrors[0].message);
     }
 
     // 3. Commit Edit Session

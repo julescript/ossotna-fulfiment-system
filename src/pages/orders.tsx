@@ -109,6 +109,16 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   const fulfillmentStatusOptions = ["New Order", "Ready For Delivery", "Sent For Delivery", "Delivered"];
 
   // Listen for sidebar action events
+  // Keep selectedOrder in sync with latest orders data (e.g. after fetchOrders)
+  useEffect(() => {
+    if (selectedOrder && orders.length > 0) {
+      const updated = orders.find(o => o.id === selectedOrder.id);
+      if (updated && updated !== selectedOrder) {
+        setSelectedOrder(updated);
+      }
+    }
+  }, [orders]);
+
   useEffect(() => {
     const handleScanOrder = () => setIsCameraOpen(true);
     const handleUploadImages = () => setIsImageUploadModalOpen(true);
@@ -694,10 +704,21 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
 
       // 2) Save the final URLs to a "story-photos" metafield
       const photoUrls = processedImages.map((img) => img.url);
-      await saveMetafieldAPI(order.id, "story-photos", "json_string", JSON.stringify(photoUrls));
+      const photoJson = JSON.stringify(photoUrls);
+      await saveMetafieldAPI(order.id, "story-photos", "json_string", photoJson);
+
+      // Update selectedOrder locally so thumbnails refresh immediately
+      if (selectedOrder && selectedOrder.id === order.id) {
+        const existingMf = selectedOrder.metafields?.find((mf) => mf.namespace === "custom" && mf.key === "story-photos");
+        const updatedMetafields = existingMf
+          ? selectedOrder.metafields.map((mf) =>
+              mf.namespace === "custom" && mf.key === "story-photos" ? { ...mf, value: photoJson } : mf
+            )
+          : [...(selectedOrder.metafields || []), { namespace: "custom", key: "story-photos", value: photoJson }];
+        setSelectedOrder({ ...selectedOrder, metafields: updatedMetafields });
+      }
 
       toast.success(`Images processed and uploaded for ${folderName}!`, { autoClose: 2000 });
-      // Optionally, refresh orders to get the new metafields
       fetchOrders(limit);
     } catch (error) {
       console.error("Error uploading images:", error);
@@ -1335,7 +1356,8 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
           orderId: order.id,
           customItem: {
             title: customItemName,
-            price: parsedPrice.toFixed(2), // Ensure two decimal places
+            price: parsedPrice.toFixed(2),
+            currencyCode: order.currencyCode || "USD",
           },
         }),
       });
@@ -3009,7 +3031,18 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                           try { existingUrls = JSON.parse(storyPhotosMetafield.value); } catch (e) {}
                         }
                         const mergedUrls = [...existingUrls, ...newUrls];
-                        saveMetafieldAPI(selectedOrder.id, "story-photos", "json_string", JSON.stringify(mergedUrls))
+                        const mergedJson = JSON.stringify(mergedUrls);
+                        // Update selectedOrder locally so thumbnails refresh immediately
+                        const updatedMetafields = storyPhotosMetafield
+                          ? selectedOrder.metafields.map((mf) =>
+                              mf.namespace === "custom" && mf.key === "story-photos"
+                                ? { ...mf, value: mergedJson }
+                                : mf
+                            )
+                          : [...(selectedOrder.metafields || []), { namespace: "custom", key: "story-photos", value: mergedJson }];
+                        setSelectedOrder({ ...selectedOrder, metafields: updatedMetafields });
+
+                        saveMetafieldAPI(selectedOrder.id, "story-photos", "json_string", mergedJson)
                           .then(() => {
                             toast.success('Images added to story-photos!');
                             fetchOrders(limit);
