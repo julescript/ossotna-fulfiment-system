@@ -1131,13 +1131,18 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       } = originalOrder;
 
       // 2) Convert the existing line_items to order-friendly format
-      const newLineItems = line_items.map((item) => ({
-        variant_id: item.variant_id, // Include if it's a physical product variant
-        title: item.title,
-        quantity: item.quantity,
-        price: item.price, // Price as string
-        properties: item.properties?.map(({ name, value }) => ({ name, value })),
-      }));
+      const newLineItems = line_items.map((item) => {
+        // Extract numeric variant_id from GID format (e.g. "gid://shopify/ProductVariant/123" -> 123)
+        const variantId = item.variant?.id ? item.variant.id.split('/').pop() : null;
+        const lineItem: any = {
+          title: item.title,
+          quantity: item.quantity,
+          price: item.variant?.price || "0.00",
+          properties: item.properties?.map(({ name, value }) => ({ name, value })),
+        };
+        if (variantId) lineItem.variant_id = parseInt(variantId, 10);
+        return lineItem;
+      });
 
       // 3) If user entered a custom item, push it to newLineItems
       if (customItems.length > 0) {
@@ -1147,43 +1152,23 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       // 4) Clone shipping_lines from the original order
       const newShippingLines = shipping_lines.map((shippingLine) => ({
         title: shippingLine.title,
-        price: shippingLine.price, // Price as string
-        code: shippingLine.code || "", // Shipping rate code
-        source: shippingLine.source || "custom", // Shipping rate source
-        // If there are carrier identifiers or other fields, include them here
+        price: shippingLine.price,
+        code: shippingLine.code || "",
+        source: shippingLine.source || "custom",
       }));
 
-      // 5) Clone transactions from the original order
-      // Note: Directly duplicating transactions may not be feasible due to security and data integrity.
-      // Instead, you can set up new transactions based on your payment workflow.
-      // Here, we'll assume you want to record a payment for the new order.
-      // You'll need to integrate with your payment gateway accordingly.
-
-      // Example: Creating a new transaction based on the original
-      // WARNING: Be cautious with handling sensitive payment information.
-      const newTransactions = transactions.map((transaction) => ({
-        kind: transaction.kind, // e.g., 'authorization', 'capture'
-        status: transaction.status, // e.g., 'success'
-        amount: transaction.amount, // Amount as string
-        gateway: transaction.gateway, // Payment gateway name
-        // Do not include sensitive fields like credit card information
-      }));
+      // 5) Build address from shipping_address
+      const addr = shipping_address || null;
 
       // 6) Create the new order payload
       const orderPayload = {
         order: {
           line_items: newLineItems,
-          customer: customer ? { id: customer.id } : null, // Link to existing customer
-          email: email || (customer ? customer.email : undefined), // Ensure email is set
-          shipping_address: shipping_address || null,
-          billing_address: billing_address || null,
-          financial_status: financial_status || "pending", // Set based on your workflow
-          fulfillment_status: fulfillment_status || "unfulfilled", // Set based on your workflow
+          email: email || undefined,
+          shipping_address: addr,
+          billing_address: addr,
+          financial_status: "pending",
           shipping_lines: newShippingLines,
-          // transactions: newTransactions, // Typically handled separately
-          // To create a payment, you might need to handle it via the Payment API or Checkout
-          // For simplicity, we'll omit transactions here
-          // Include other necessary fields like tags, note, etc., if needed
         },
       };
 
@@ -1365,10 +1350,14 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       const data = await response.json();
       if (data.success) {
         toast.success("Custom item added successfully!", { autoClose: 2000 });
-        // Optionally, refresh order data here
         fetchOrders(limit);
       } else {
-        throw new Error(data.error || "Unknown error");
+        const errMsg = data.error || "Unknown error";
+        if (errMsg.includes("cannot be edited")) {
+          toast.error("This order cannot be edited (fulfilled/closed). Use 'Create Order' instead.", { autoClose: 4000 });
+        } else {
+          toast.error(`Failed: ${errMsg}`, { autoClose: 3000 });
+        }
       }
     } catch (error) {
       console.error("Error adding custom item:", error);
