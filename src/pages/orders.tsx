@@ -115,7 +115,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
   const [currentScanOrder, setCurrentScanOrder] = useState(null);
   const [scanStatus, setScanStatus] = useState("ready"); // ready, loading, success, error
   const [isFulfilling, setIsFulfilling] = useState(false);
-  const [tableFilter, setTableFilter] = useState<"all" | "new" | "edits" | "printing" | "ready" | "delivery" | "sent">(() => {
+  const [tableFilter, setTableFilter] = useState<"all" | "new" | "edits" | "printing" | "ready" | "delivery" | "sent" | "delivered">(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('userRole') === 'delivery') return 'delivery';
     return 'all';
   });
@@ -2221,6 +2221,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
               ready: orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order").length,
               delivery: orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery").length,
               sent: orders.filter(o => fulfillmentStatuses[o.id] === "Sent For Delivery").length,
+              delivered: orders.filter(o => fulfillmentStatuses[o.id] === "Delivered").length,
             };
             return <>
               {/* Mobile: dropdown select */}
@@ -2236,6 +2237,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 {(counts.ready > 0 || tableFilter === "ready") && <option value="ready">To Fulfill ({counts.ready})</option>}
                 {(counts.delivery > 0 || tableFilter === "delivery") && <option value="delivery">Delivery ({counts.delivery})</option>}
                 {(counts.sent > 0 || tableFilter === "sent") && <option value="sent">Sent ({counts.sent})</option>}
+                {(counts.delivered > 0 || tableFilter === "delivered") && <option value="delivered">Delivered ({counts.delivered})</option>}
               </select>
 
               {/* Desktop: filter buttons */}
@@ -2282,6 +2284,12 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                 >
                   📦 Sent ({counts.sent})
                 </button>}
+                {(counts.delivered > 0 || tableFilter === "delivered") && <button
+                  onClick={() => setTableFilter("delivered")}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${tableFilter === "delivered" ? 'bg-purple-500 text-white border-purple-500' : 'bg-transparent text-gray-500 border-gray-600 hover:text-purple-300 hover:border-purple-700'}`}
+                >
+                  ✅ Delivered ({counts.delivered})
+                </button>}
               </div>
             </>;
           })()}
@@ -2297,6 +2305,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
               tableFilter === "ready" ? orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
               tableFilter === "delivery" ? orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery") :
               tableFilter === "sent" ? orders.filter(o => fulfillmentStatuses[o.id] === "Sent For Delivery") :
+              tableFilter === "delivered" ? orders.filter(o => fulfillmentStatuses[o.id] === "Delivered") :
               orders;
 
             if (searchQuery.trim()) {

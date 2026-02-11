@@ -95,6 +95,7 @@ const getRowBackgroundClass = (
   if (story === "Waiting") return "bg-red-900";
   if (fulfillment === "Ready For Delivery") return "bg-green-900";
   if (fulfillment === "Sent For Delivery") return "bg-sky-200 dark:bg-sky-900";
+  if (fulfillment === "Delivered") return "bg-purple-900";
   if (story === "Pending" && printables === "Pending" && fulfillment === "New Order")
     return "bg-gray-100 dark:bg-gray-700";
   return "";
