@@ -173,7 +173,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                     <div className="rounded-lg overflow-hidden bg-gray-700 flex-shrink-0" style={{ height: '134px', aspectRatio: '54/85.6' }}>
                       {(() => {
                         const imgProp = order.line_items[0]?.properties?.find((p: any) => p.name === "_original_view_2" && p.value);
-                        return <img src={imgProp ? imgProp.value : "/card-default.jpg"} alt="" className="w-full h-full object-cover" />;
+                        return <img src={imgProp ? imgProp.value : "/card-default.jpg"} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = '/card-default.jpg'; }} />;
                       })()}
                     </div>
                     {/* Info */}
@@ -224,7 +224,7 @@ const OrdersTable: React.FC<OrdersTableProps> = ({
                       <div className="rounded-lg overflow-hidden bg-gray-700 flex-shrink-0" style={{ height: '134px', aspectRatio: '54/85.6' }}>
                         {(() => {
                           const imgProp = order.line_items[0]?.properties?.find((p: any) => p.name === "_original_view_2" && p.value);
-                          return <img src={imgProp ? imgProp.value : "/card-default.jpg"} alt="" className="w-full h-full object-cover" />;
+                          return <img src={imgProp ? imgProp.value : "/card-default.jpg"} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = '/card-default.jpg'; }} />;
                         })()}
                       </div>
                       <div className="flex flex-col items-start">

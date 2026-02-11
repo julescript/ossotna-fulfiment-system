@@ -3244,7 +3244,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
 
                               // Convert any audio format to MP3 using Web Audio API + lamejs
                               const convertToMp3 = async (audioFile: File): Promise<Blob> => {
-                                const lamejs = (await import('lamejs')).default || await import('lamejs');
+                                const lamejs = await import('@breezystack/lamejs');
                                 const arrayBuffer = await audioFile.arrayBuffer();
                                 const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
                                 const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
@@ -3271,7 +3271,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                                 const rightInt16 = toInt16(right);
 
                                 const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
-                                const mp3Data: Int8Array[] = [];
+                                const mp3Data: any[] = [];
                                 const blockSize = 1152;
 
                                 for (let i = 0; i < leftInt16.length; i += blockSize) {
