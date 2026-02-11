@@ -6,6 +6,27 @@ import ImageUploadModal from '../components/ImageUploadModal';
 import OrdersTable from '../components/OrdersTable';
 import LogoutButton from '../components/LogoutButton';
 import VersionDisplay from '../components/VersionDisplay';
+// File size display component
+const FileSize = ({ url }: { url: string }) => {
+  const [size, setSize] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!url) return;
+    fetch(url, { method: 'HEAD' })
+      .then((res) => {
+        const len = res.headers.get('content-length');
+        if (len) {
+          const bytes = parseInt(len, 10);
+          if (bytes < 1024) setSize(`${bytes} B`);
+          else if (bytes < 1048576) setSize(`${(bytes / 1024).toFixed(1)} KB`);
+          else setSize(`${(bytes / 1048576).toFixed(1)} MB`);
+        }
+      })
+      .catch(() => {});
+  }, [url]);
+  if (!size) return null;
+  return <span className="text-[10px] text-gray-300">{size}</span>;
+};
+
 // Dynamically import QR Scanner components
 const Scanner = dynamic(() => import('@yudiel/react-qr-scanner').then(mod => mod.Scanner), { ssr: false });
 // Custom hook for fetching orders:
@@ -3102,8 +3123,9 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                                     content_copy
                                   </span>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-xs text-center py-0.5">
-                                  {index + 1}
+                                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white text-[10px] text-center py-0.5 flex items-center justify-center gap-1">
+                                  <span>{index + 1}</span>
+                                  <FileSize url={url} />
                                 </div>
                               </div>
                             ))}
@@ -3187,6 +3209,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                         return (
                           <div className="mb-4 p-3 bg-gray-700 rounded-lg">
                             <audio controls className="w-full mb-2" src={audioMetafield.value} />
+                            <div className="mb-2"><FileSize url={audioMetafield.value} /></div>
                             <div className="flex gap-2">
                               <button
                                 onClick={() => {
