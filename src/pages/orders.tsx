@@ -219,7 +219,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
 
     setSelectedOrder(order);
     const userRole = typeof window !== 'undefined' ? localStorage.getItem('userRole') : null;
-    setActiveModalTab(isMobile() && userRole === 'delivery' ? "delivery" : "details");
+    setActiveModalTab(userRole === 'delivery' ? "delivery" : "details");
     setClipboardContent("");
     setGeneratedStory("");
     setIsModalOpen(true);
@@ -1632,7 +1632,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       }
       
       // Create the preview message
-      const previewMessage = `Hello ${selectedOrder?.shipping_address?.first_name}, Please find attached the preview of your Ossotna card. Let me know if you'd like any changes before we proceed with printing.\n\nThank you!`;
+      const previewMessage = `Hello ${selectedOrder?.shipping_address?.first_name}, Please find attached the preview of your Ossotna card design. The story preview link will be sent separately once ready. Let me know if you'd like any changes before we proceed with printing.\n\nThank you!`;
       
       // Generate WhatsApp URL based on device
       const whatsappUrl = getWhatsAppUrl(cleanPhone, previewMessage);
@@ -2449,6 +2449,19 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                           Call
                         </a>
                       </div>
+                      {/* Quick Action: Send "Ready for Delivery" WhatsApp message */}
+                      <a
+                        href={getWhatsAppUrl(
+                          formatPhoneForWhatsApp(getPhoneNumber(selectedOrder)),
+                          `Hello ${selectedOrder?.shipping_address?.first_name || ''}, your Ossotna order ${selectedOrder?.name || ''} is ready for delivery and getting sent out today. The driver will contact you for location and time. Thank you!`
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-orange-600 hover:bg-orange-500 text-white transition text-sm font-medium mt-1"
+                      >
+                        <span className="material-symbols-outlined text-[22px]">local_shipping</span>
+                        Send "Ready for Delivery" Message
+                      </a>
                     </div>
                   </div>
 
