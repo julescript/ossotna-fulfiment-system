@@ -3123,6 +3123,196 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                       }}
                     />
                   </div>
+
+                  <hr className="border-gray-600 mb-6 mt-6" />
+
+                  {/* Audio Upload Section */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Story Audio</h3>
+
+                    {/* Existing audio display */}
+                    {(() => {
+                      const audioMetafield = selectedOrder.metafields?.find(
+                        (mf) => mf.namespace === "custom" && mf.key === "story-audio"
+                      );
+                      if (audioMetafield?.value) {
+                        return (
+                          <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+                            <audio controls className="w-full mb-2" src={audioMetafield.value} />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(audioMetafield.value).then(
+                                    () => toast.success('Audio URL copied!', { autoClose: 1500 }),
+                                    () => toast.error('Failed to copy URL')
+                                  );
+                                }}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded text-sm transition"
+                              >
+                                <span className="material-symbols-outlined text-base">content_copy</span>
+                                Copy Audio URL
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!confirm('Remove audio from this order?')) return;
+                                  try {
+                                    await saveMetafieldAPI(selectedOrder.id, "story-audio", "single_line_text_field", "");
+                                    const updatedMetafields = selectedOrder.metafields.map((mf) =>
+                                      mf.namespace === "custom" && mf.key === "story-audio" ? { ...mf, value: "" } : mf
+                                    );
+                                    setSelectedOrder({ ...selectedOrder, metafields: updatedMetafields });
+                                    toast.success('Audio removed!');
+                                    fetchOrders(limit);
+                                  } catch (err) {
+                                    toast.error('Failed to remove audio');
+                                  }
+                                }}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm transition"
+                              >
+                                <span className="material-symbols-outlined text-base">delete</span>
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return <p className="text-gray-400 text-sm mb-3">No audio uploaded yet.</p>;
+                    })()}
+
+                    {/* Audio upload input */}
+                    <div className="flex flex-col gap-3">
+                      <label className="border-2 border-dashed border-gray-500 rounded-lg p-6 text-center cursor-pointer transition-colors hover:bg-gray-600">
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            const uploadToast = toast.loading('Converting & uploading audio...');
+                            try {
+                              const folderName = selectedOrder.name?.replace('#', '') || 'audio';
+
+                              // Convert any audio format to MP3 using Web Audio API + lamejs
+                              const convertToMp3 = async (audioFile: File): Promise<Blob> => {
+                                const lamejs = (await import('lamejs')).default || await import('lamejs');
+                                const arrayBuffer = await audioFile.arrayBuffer();
+                                const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                                const numChannels = audioBuffer.numberOfChannels;
+                                const sampleRate = audioBuffer.sampleRate;
+                                const kbps = 128;
+
+                                // Get PCM data
+                                const left = audioBuffer.getChannelData(0);
+                                const right = numChannels > 1 ? audioBuffer.getChannelData(1) : left;
+
+                                // Convert Float32 to Int16
+                                const toInt16 = (float32: Float32Array) => {
+                                  const int16 = new Int16Array(float32.length);
+                                  for (let i = 0; i < float32.length; i++) {
+                                    const s = Math.max(-1, Math.min(1, float32[i]));
+                                    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                                  }
+                                  return int16;
+                                };
+
+                                const leftInt16 = toInt16(left);
+                                const rightInt16 = toInt16(right);
+
+                                const mp3Encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, kbps);
+                                const mp3Data: Int8Array[] = [];
+                                const blockSize = 1152;
+
+                                for (let i = 0; i < leftInt16.length; i += blockSize) {
+                                  const leftChunk = leftInt16.subarray(i, i + blockSize);
+                                  const rightChunk = rightInt16.subarray(i, i + blockSize);
+                                  const mp3buf = numChannels === 1
+                                    ? mp3Encoder.encodeBuffer(leftChunk)
+                                    : mp3Encoder.encodeBuffer(leftChunk, rightChunk);
+                                  if (mp3buf.length > 0) mp3Data.push(mp3buf);
+                                }
+
+                                const end = mp3Encoder.flush();
+                                if (end.length > 0) mp3Data.push(end);
+
+                                audioContext.close();
+                                return new Blob(mp3Data as any[], { type: 'audio/mpeg' });
+                              };
+
+                              // If already MP3, use as-is; otherwise convert
+                              let mp3Blob: Blob;
+                              if (file.type === 'audio/mpeg' || file.name.toLowerCase().endsWith('.mp3')) {
+                                mp3Blob = file;
+                              } else {
+                                toast.update(uploadToast, { render: 'Converting to MP3...' });
+                                mp3Blob = await convertToMp3(file);
+                              }
+
+                              const mp3FileName = file.name.replace(/\.[^.]+$/, '') + '.mp3';
+                              const mp3File = new File([mp3Blob], mp3FileName, { type: 'audio/mpeg' });
+
+                              toast.update(uploadToast, { render: 'Uploading MP3...' });
+
+                              // Get Cloudinary signature
+                              const signRes = await fetch('/api/cloudinary-sign', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ folder: folderName }),
+                              });
+                              if (!signRes.ok) throw new Error('Failed to get upload signature');
+                              const { timestamp, signature, api_key } = await signRes.json();
+
+                              // Upload MP3 to Cloudinary
+                              const formData = new FormData();
+                              formData.append('file', mp3File);
+                              formData.append('timestamp', timestamp);
+                              formData.append('signature', signature);
+                              formData.append('api_key', api_key);
+                              formData.append('folder', folderName);
+
+                              const uploadRes = await fetch('https://api.cloudinary.com/v1_1/ossotna/auto/upload', {
+                                method: 'POST',
+                                body: formData,
+                              });
+                              if (!uploadRes.ok) throw new Error('Failed to upload audio');
+                              const uploadData = await uploadRes.json();
+                              const audioUrl = uploadData.secure_url;
+
+                              // Save to metafield
+                              await saveMetafieldAPI(selectedOrder.id, "story-audio", "single_line_text_field", audioUrl);
+
+                              // Update local state
+                              const existingMf = selectedOrder.metafields?.find(
+                                (mf) => mf.namespace === "custom" && mf.key === "story-audio"
+                              );
+                              const updatedMetafields = existingMf
+                                ? selectedOrder.metafields.map((mf) =>
+                                    mf.namespace === "custom" && mf.key === "story-audio" ? { ...mf, value: audioUrl } : mf
+                                  )
+                                : [...(selectedOrder.metafields || []), { namespace: "custom", key: "story-audio", value: audioUrl }];
+                              setSelectedOrder({ ...selectedOrder, metafields: updatedMetafields });
+
+                              toast.dismiss(uploadToast);
+                              toast.success('Audio converted to MP3 and uploaded!');
+                              fetchOrders(limit);
+                            } catch (err) {
+                              toast.dismiss(uploadToast);
+                              console.error('Audio upload error:', err);
+                              toast.error(`Failed to upload audio: ${err.message}`);
+                            }
+                            // Reset input
+                            e.target.value = '';
+                          }}
+                        />
+                        <span className="material-symbols-outlined text-3xl text-gray-400 mb-1">audio_file</span>
+                        <p className="text-gray-300 text-sm">Click to select an audio file</p>
+                        <p className="text-gray-500 text-xs mt-1">MP3, WAV, OGG, M4A supported</p>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
               )}
