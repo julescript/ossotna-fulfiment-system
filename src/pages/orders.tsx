@@ -98,6 +98,8 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     if (typeof window !== 'undefined' && localStorage.getItem('userRole') === 'delivery') return 'delivery';
     return 'all';
   });
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pendingSentForDeliveryOrderId, setPendingSentForDeliveryOrderId] = useState<string | null>(null);
 
   // Statuses (new)
   const [storyStages, setStoryStages] = useState({});
@@ -1240,15 +1242,22 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     'Delivered': 'DELIVERED',
   };
 
-  const handleFulfillmentStatusChange = async (orderId, newStatus) => {
+  const handleFulfillmentStatusChange = async (orderId, newStatus, deliveryProvider?: string) => {
+    // If changing to "Sent For Delivery" and no provider selected yet, prompt for one
+    if (newStatus === "Sent For Delivery" && !deliveryProvider) {
+      setPendingSentForDeliveryOrderId(orderId);
+      return;
+    }
+
     setFulfillmentStatuses((prev) => ({ ...prev, [orderId]: newStatus }));
     try {
       await saveMetafieldAPI(orderId, "fulfillment-status", "single_line_text_field", newStatus);
       toast.success("Fulfillment status updated successfully!", { autoClose: 2000 });
 
-      // Sync tags in Shopify: remove all old delivery tags, then add the correct one
+      // Sync tags in Shopify: remove all old delivery tags + provider tags, then add the correct ones
       const newTag = STATUS_TO_TAG[newStatus];
-      const tagsToRemove = DELIVERY_TAGS.filter(t => t !== newTag);
+      const providerTags = ['WAKILNI', 'UNIPARCEL', 'ROADRUNNER', 'OSSDRIVER'];
+      const tagsToRemove = [...DELIVERY_TAGS.filter(t => t !== newTag), ...providerTags];
 
       // Remove stale tags
       if (tagsToRemove.length > 0) {
@@ -1264,16 +1273,20 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
       }
 
       // Add the new tag (if status maps to one)
-      if (newTag) {
+      const tagsToAdd = [];
+      if (newTag) tagsToAdd.push(newTag);
+      if (deliveryProvider) tagsToAdd.push(deliveryProvider);
+
+      for (const tag of tagsToAdd) {
         try {
           const response = await fetch('/api/shopify/addTag', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId, tag: newTag }),
+            body: JSON.stringify({ orderId, tag }),
           });
           const data = await response.json();
           if (data.success) {
-            toast.info(`Order tagged as ${newTag} in Shopify`, { autoClose: 3000 });
+            toast.info(`Order tagged as ${tag} in Shopify`, { autoClose: 3000 });
           } else {
             console.warn("Shopify tag warning:", data.error);
           }
@@ -2162,6 +2175,23 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
             </select>
           </div>
 
+          {/* Search */}
+          <div className="relative flex-1 max-w-xs">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search orders..."
+              className="w-full pl-9 pr-8 py-1.5 bg-gray-600 text-white rounded border border-gray-500 text-sm placeholder-gray-400 focus:outline-none focus:border-indigo-500"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white">
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            )}
+          </div>
+
           {(() => {
             const counts = {
               new: orders.filter(o => (storyStages[o.id] || "Pending") === "Pending" && (printablesStatuses[o.id] || "Pending") === "Pending" && (fulfillmentStatuses[o.id] || "New Order") === "New Order").length,
@@ -2238,15 +2268,33 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
 
         {/* Main Table */}
         <OrdersTable
-          orders={
-            tableFilter === "new" ? orders.filter(o => (storyStages[o.id] || "Pending") === "Pending" && (printablesStatuses[o.id] || "Pending") === "Pending" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
-            tableFilter === "edits" ? orders.filter(o => (storyStages[o.id] || "Pending") === "Review") :
-            tableFilter === "printing" ? orders.filter(o => printablesStatuses[o.id] === "Printing") :
-            tableFilter === "ready" ? orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
-            tableFilter === "delivery" ? orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery") :
-            tableFilter === "sent" ? orders.filter(o => fulfillmentStatuses[o.id] === "Sent For Delivery") :
-            orders
-          }
+          orders={(() => {
+            let filtered =
+              tableFilter === "new" ? orders.filter(o => (storyStages[o.id] || "Pending") === "Pending" && (printablesStatuses[o.id] || "Pending") === "Pending" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
+              tableFilter === "edits" ? orders.filter(o => (storyStages[o.id] || "Pending") === "Review") :
+              tableFilter === "printing" ? orders.filter(o => printablesStatuses[o.id] === "Printing") :
+              tableFilter === "ready" ? orders.filter(o => printablesStatuses[o.id] === "Ready" && (fulfillmentStatuses[o.id] || "New Order") === "New Order") :
+              tableFilter === "delivery" ? orders.filter(o => fulfillmentStatuses[o.id] === "Ready For Delivery") :
+              tableFilter === "sent" ? orders.filter(o => fulfillmentStatuses[o.id] === "Sent For Delivery") :
+              orders;
+
+            if (searchQuery.trim()) {
+              const q = searchQuery.trim().toLowerCase();
+              filtered = filtered.filter(o => {
+                const name = (o.name || '').toLowerCase();
+                const id = String(o.id || '').toLowerCase();
+                const firstName = (o.shipping_address?.first_name || '').toLowerCase();
+                const lastName = (o.shipping_address?.last_name || '').toLowerCase();
+                const email = (o.email || '').toLowerCase();
+                const phone = (o.shipping_address?.phone || o.phone || '').toLowerCase();
+                const subdomain = (subdomains[o.id] || '').toLowerCase();
+                const city = (o.shipping_address?.city || '').toLowerCase();
+                return name.includes(q) || id.includes(q) || firstName.includes(q) || lastName.includes(q) || `${firstName} ${lastName}`.includes(q) || email.includes(q) || phone.includes(q) || subdomain.includes(q) || city.includes(q);
+              });
+            }
+
+            return filtered;
+          })()}
           isLoading={isLoading}
           subdomains={subdomains}
           toggledRows={toggledRows}
@@ -2287,7 +2335,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
 
         <ToastContainer
           position="bottom-center"
-          limit={3}
+          limit={1}
           newestOnTop
           closeOnClick
           autoClose={2000}
@@ -3424,6 +3472,36 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
             </div>
             <button
               onClick={() => setShowDeliveryProviderSelect(false)}
+              className="w-full mt-4 p-3 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-white rounded-md font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery Provider Selection for Dropdown Status Change */}
+      {pendingSentForDeliveryOrderId && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full mx-4 p-6">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 text-center">Select Delivery Provider</h3>
+            <div className="flex flex-col gap-3">
+              {['WAKILNI', 'UNIPARCEL', 'ROADRUNNER', 'OSSDRIVER'].map((provider) => (
+                <button
+                  key={provider}
+                  onClick={() => {
+                    const orderId = pendingSentForDeliveryOrderId;
+                    setPendingSentForDeliveryOrderId(null);
+                    handleFulfillmentStatusChange(orderId, "Sent For Delivery", provider);
+                  }}
+                  className="p-4 bg-orange-600 hover:bg-orange-700 text-white rounded-md font-bold text-lg transition-colors"
+                >
+                  {provider}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPendingSentForDeliveryOrderId(null)}
               className="w-full mt-4 p-3 bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-white rounded-md font-medium transition-colors"
             >
               Cancel
