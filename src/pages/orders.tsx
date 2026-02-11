@@ -1657,6 +1657,72 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
     }
   };
 
+  // Handle combo send: card preview image + story preview URL in one WhatsApp message
+  const handleSendCombo = async (imageData) => {
+    if (!selectedOrder) return;
+
+    try {
+      const loadingToast = toast.loading('Preparing combo preview...');
+
+      const phoneNumber = getPhoneNumber(selectedOrder);
+      if (!phoneNumber) {
+        toast.dismiss(loadingToast);
+        toast.error('No phone number available for this order');
+        return;
+      }
+
+      const cleanPhone = formatPhoneForWhatsApp(phoneNumber);
+
+      if (!imageData) {
+        toast.dismiss(loadingToast);
+        toast.error('Failed to generate card preview image');
+        return;
+      }
+
+      // Get the story URL from metafields
+      const storyUrl = selectedOrder.metafields?.find(
+        (mf) => mf.namespace === "custom" && mf.key === "story-url"
+      )?.value;
+
+      // Get the password if it exists
+      const passwordProperty = selectedOrder.line_items[0]?.properties?.find(
+        (prop) => prop.name === "password"
+      );
+
+      // Build the combo message
+      let comboMessage = `Hello ${selectedOrder?.shipping_address?.first_name || ''}, here is your Ossotna order ${selectedOrder?.name || ''} preview:\n\n📇 *Card Design* — Please find the card preview image attached. Let me know if you'd like any changes before we proceed with printing.`;
+
+      if (storyUrl) {
+        comboMessage += `\n\n📖 *Story Preview* — Here is the link to your story:\nhttps://${storyUrl}.ossotna.com/`;
+        if (passwordProperty) {
+          comboMessage += `\nPassword: ${passwordProperty.value}`;
+        }
+      } else {
+        comboMessage += `\n\n📖 *Story Preview* — The story preview link will be sent separately once ready.`;
+      }
+
+      comboMessage += `\n\nHope you like it as much as we do! Thank you!`;
+
+      // Download the card image
+      const link = document.createElement('a');
+      link.href = imageData;
+      link.download = `ossotna_card_${selectedOrder.name.replace('#', '')}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.dismiss(loadingToast);
+      toast.success('Card preview downloaded. Please attach it to your WhatsApp message.');
+
+      // Open WhatsApp with the combo message
+      const whatsappUrl = getWhatsAppUrl(cleanPhone, comboMessage);
+      window.open(whatsappUrl, '_blank');
+    } catch (error) {
+      console.error('Error sending combo preview:', error);
+      toast.error(`Error: ${error.message || 'Unknown error sending combo preview'}`);
+    }
+  };
+
   // Function to determine the number of cards needed based on variant title
   const getCardQuantityFromVariant = (variantTitle) => {
     if (!variantTitle) return 1; // Default to 1 if no variant title
@@ -2702,6 +2768,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                           qr={generatedQRCodes[selectedOrder.id]}
                           subdomain={subdomainValue(selectedOrder)}
                           onSendCardPreview={handleSendCardPreview}
+                          onSendCombo={handleSendCombo}
                           onSendToPrinter={handleSendToPrinter}
                           orderName={selectedOrder.name}
                           cardQuantity={getCardQuantityFromVariant(selectedOrder.line_items[0]?.variant_title || '')}

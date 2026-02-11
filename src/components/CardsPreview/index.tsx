@@ -47,6 +47,7 @@ interface OnePDFWithTwoFramesProps {
   orderName?: string;
   cardQuantity?: number;
   onSendCardPreview?: (imageData: string) => void;
+  onSendCombo?: (imageData: string) => void;
   onSendToPrinter?: (pdfUrl: string) => void;
 }
 
@@ -67,6 +68,7 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
   overlay1 = "/overlay1.pdf",
   overlay2 = "/overlay2.pdf",
   onSendCardPreview,
+  onSendCombo,
   onSendToPrinter,
   orderName = "",
   cardQuantity = 1,
@@ -479,6 +481,23 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
     }
   };
 
+  const handleSendCombo = async () => {
+    try {
+      if (!pdfData) {
+        await generatePDF();
+      }
+      const imageData = await convertPdfToImage();
+      if (imageData && onSendCombo) {
+        onSendCombo(imageData);
+      } else {
+        toast.error('Failed to generate card preview for combo send');
+      }
+    } catch (error) {
+      console.error('Error in combo send:', error);
+      toast.error('Failed to prepare combo send');
+    }
+  };
+
   const handlePrint = () => {
     if (!downloadUrl) return;
     
@@ -545,6 +564,10 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
         <button onClick={handleSend} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-green-700 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 transition" disabled={!pdfData}>
           <span className="material-symbols-outlined text-[18px]">send</span>
           Send
+        </button>
+        <button onClick={handleSendCombo} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-orange-600 hover:bg-orange-500 text-white text-sm font-medium disabled:opacity-50 transition" disabled={!pdfData}>
+          <span className="material-symbols-outlined text-[18px]">package_2</span>
+          Combo
         </button>
         <button onClick={handlePrint} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-md bg-purple-700 hover:bg-purple-600 text-white text-sm font-medium disabled:opacity-50 transition" disabled={!downloadUrl}>
           <span className="material-symbols-outlined text-[18px]">print</span>
