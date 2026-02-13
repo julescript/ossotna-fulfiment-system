@@ -2470,6 +2470,54 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                         ))}
                       </select>
                     </div>
+                    {/* Subdomain (mobile) */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Subdomain</label>
+                      <div className="flex gap-1">
+                        <input
+                          type="text"
+                          className={`flex-1 p-1.5 text-sm border rounded text-gray-800 dark:text-gray-100 dark:bg-gray-700 ${
+                            (subdomains[selectedOrder.id] || "") === getDefaultSubdomain(selectedOrder)
+                              ? "border-gray-500"
+                              : "border-blue-500"
+                          }`}
+                          value={subdomains[selectedOrder.id] || ""}
+                          onChange={(e) =>
+                            setSubdomains((prev) => ({
+                              ...prev,
+                              [selectedOrder.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter subdomain..."
+                        />
+                        <button
+                          className={`flex items-center justify-center w-9 h-9 rounded transition ${
+                            (subdomains[selectedOrder.id] || "") === getDefaultSubdomain(selectedOrder)
+                              ? "bg-gray-600 text-gray-500 cursor-not-allowed opacity-50"
+                              : "bg-blue-600 hover:bg-blue-500 text-white"
+                          }`}
+                          onClick={() => handleSaveSubdomain(selectedOrder.id, subdomains[selectedOrder.id] || "")}
+                          disabled={(subdomains[selectedOrder.id] || "") === getDefaultSubdomain(selectedOrder)}
+                          title="Save Subdomain"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">save</span>
+                        </button>
+                        <button
+                          className="flex items-center justify-center w-9 h-9 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition"
+                          onClick={() => {
+                            const customURL = getOrderURL(selectedOrder);
+                            const randomDigits = Math.floor(10000 + Math.random() * 90000);
+                            const st = selectedOrder.line_items[0].properties.find((p: any) => p.name === "story-type")?.value || "";
+                            const prefix = st.toLowerCase() === "mother" ? "mom-" : "book-";
+                            const fallback = `${prefix}${randomDigits}`;
+                            setSubdomains((prev) => ({ ...prev, [selectedOrder.id]: customURL || fallback }));
+                          }}
+                          title="Auto-Fill Subdomain"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">auto_fix_high</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   {/* Desktop: all 3 in a row */}
                   <div className="hidden md:grid grid-cols-3 gap-3">
