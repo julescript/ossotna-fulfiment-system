@@ -46,6 +46,7 @@ interface OnePDFWithTwoFramesProps {
   qr?: string;
   orderName?: string;
   cardQuantity?: number;
+  storyType?: string;
   onSendCardPreview?: (imageData: string) => void;
   onSendCombo?: (imageData: string) => void;
   onSendToPrinter?: (pdfUrl: string) => void;
@@ -72,6 +73,7 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
   onSendToPrinter,
   orderName = "",
   cardQuantity = 1,
+  storyType = "",
 }, ref) => {
   const [isLoading, setIsLoading] = useState(false);
   const [pdfData, setPdfData] = useState(null);
@@ -273,16 +275,67 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
         height: CARD_HEIGHT,
       });
 
-      // Title.
+      // Title (with optional mother icon above).
+      const isMother = storyType?.toLowerCase() === "mother";
       const titleIsArabic = isArabic(title) && arabicBoldFont;
       const titleFontSize = titleIsArabic ? 11.5 : 11.5;
       const maxTitleWidth = (2 / 3) * CARD_WIDTH;
+
+      // Calculate title lines and height
+      let titleLines: string[];
+      let lineHeight: number;
+      let totalTitleHeight: number;
       if (titleIsArabic) {
         const titleText = reshapeArabic(title);
-        const titleLines = wrapTextArabic(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
-        const lineHeight = titleFontSize * 1.4;
-        const totalTitleHeight = titleLines.length * lineHeight;
-        let currentY = (CARD_HEIGHT - totalTitleHeight) / 2 + totalTitleHeight - 10;
+        titleLines = wrapTextArabic(titleText, arabicBoldFont, titleFontSize, maxTitleWidth);
+        lineHeight = titleFontSize * 1.4;
+        totalTitleHeight = titleLines.length * lineHeight;
+      } else {
+        titleLines = wrapText(title, vollkornBold, titleFontSize, maxTitleWidth);
+        lineHeight = titleFontSize * 1.2;
+        totalTitleHeight = titleLines.length * lineHeight;
+      }
+
+      // Mother icon dimensions
+      const iconWidth = isMother ? CARD_WIDTH * 0.244 : 0;
+      const iconNaturalW = 38;
+      const iconNaturalH = 48;
+      const iconHeight = isMother ? iconWidth * (iconNaturalH / iconNaturalW) : 0;
+      const iconGap = isMother ? 16 : 0; // gap between icon and title
+
+      // Combined height of icon + gap + title text
+      const combinedHeight = iconHeight + iconGap + totalTitleHeight;
+
+      // Vertically center the combined block (icon + title)
+      const blockTopY = (CARD_HEIGHT + combinedHeight) / 2 - 10;
+
+      // Draw mother icon as SVG path (vector graphics)
+      if (isMother) {
+        try {
+          // SVG path data from mother-icon.svg
+          const iconPathData = "M37.167 31.6601C36.3998 27.7221 34.4052 24.3978 32.0014 21.2268C30.6717 19.488 28.984 18.6185 26.8871 18.1582C22.233 17.1865 17.5278 17.2888 12.8737 17.9537C9.8051 18.4139 7.19677 19.4368 5.56018 22.352C3.10528 26.6481 0.701531 30.893 0.0878072 35.9051C-0.423629 40.0477 1.26411 44.5995 6.07161 46.3895C9.85624 47.8215 13.7943 48.1795 17.7835 47.9238C20.3918 47.7704 21.7216 46.3895 21.6704 44.2415C21.6193 42.1446 20.2384 41.0194 17.5789 40.9172C15.3798 40.8149 13.1294 40.8149 10.9303 40.6614C9.29366 40.5591 7.70821 40.2011 6.88991 38.3088C7.60592 38.2065 8.1685 38.1042 8.73108 38.002C9.8051 37.7974 10.9303 37.644 12.0043 37.3882C12.7714 37.2348 13.1294 36.8257 12.7714 35.9562C12.3111 34.7799 11.9531 33.6036 11.6974 32.3762C11.4928 31.4044 11.5951 30.3816 12.6691 29.8701C13.692 29.3587 14.6637 29.8701 15.3286 30.535C16.3515 31.5579 17.2721 32.6319 18.0392 33.8082C19.6758 36.2119 21.7216 37.8485 24.8925 37.5417C24.9948 37.5417 25.0971 37.644 25.4039 37.7462C24.8413 38.3088 24.381 38.718 23.9719 39.1783C22.591 40.8149 22.8467 42.8606 24.6879 43.7301C25.6085 44.1903 26.8359 44.3949 27.8588 44.2926C31.1831 43.9346 33.2289 41.6843 35.3769 39.434C37.525 37.1837 37.6784 34.473 37.167 31.6601ZM24.7902 36.6722C21.3124 36.6722 19.0621 34.5753 19.0621 31.3533C19.0621 27.8755 21.5681 25.5229 25.2505 25.5229C28.3702 25.5229 30.3649 27.5175 30.3649 30.6884C30.3649 34.115 28.0122 36.6722 24.7902 36.6722ZM19.2155 15.4476C24.4833 15.4476 27.1939 11.4073 26.8359 7.98064C27.0917 3.83801 23.8185 0.155662 18.5507 0.00223133C13.9989 -0.100056 10.5211 3.32656 10.5211 7.77606C10.5723 12.379 14.408 15.4476 19.2155 15.4476Z";
+          // SVG viewBox is 38x48, scale to iconWidth x iconHeight
+          const scaleX = iconWidth / iconNaturalW;
+          const scaleY = iconHeight / iconNaturalH;
+          const iconX = (CARD_WIDTH - iconWidth) / 2;
+          const iconY = blockTopY - iconHeight;
+          // Transform: translate to position, scale to size, flip Y (SVG top-left vs PDF bottom-left)
+          page.drawSvgPath(iconPathData, {
+            x: iconX,
+            y: iconY + iconHeight, // PDF y is bottom-left, SVG is top-left
+            scale: scaleX, // uniform scale (aspect ratio preserved)
+            color: rgb(0.98, 0.98, 0.98),
+            borderColor: rgb(0.98, 0.98, 0.98),
+            borderWidth: 0,
+          });
+        } catch (e) {
+          console.error("Failed to draw mother icon:", e);
+        }
+      }
+
+      // Draw title lines below icon
+      let currentY = blockTopY - iconHeight - iconGap;
+      if (titleIsArabic) {
         titleLines.forEach((line) => {
           const lineWidth = getArabicAdvanceWidth(arabicBoldFont, line, titleFontSize);
           const lineX = (CARD_WIDTH - lineWidth) / 2;
@@ -290,10 +343,6 @@ const OnePDFWithTwoFrames = forwardRef<OnePDFWithTwoFramesRef, OnePDFWithTwoFram
           currentY -= lineHeight;
         });
       } else {
-        const titleLines = wrapText(title, vollkornBold, titleFontSize, maxTitleWidth);
-        const lineHeight = titleFontSize * 1.2;
-        const totalTitleHeight = titleLines.length * lineHeight;
-        let currentY = (CARD_HEIGHT + totalTitleHeight) / 2 - 10;
         titleLines.forEach((line) => {
           const lineWidth = vollkornBold.getAdvanceWidth(line, titleFontSize);
           const lineX = (CARD_WIDTH - lineWidth) / 2;

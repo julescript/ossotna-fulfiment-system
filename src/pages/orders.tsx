@@ -2898,6 +2898,7 @@ const OrdersPage = ({ apiEndpoint }: { apiEndpoint?: string }) => {
                           onSendToPrinter={handleSendToPrinter}
                           orderName={selectedOrder.name}
                           cardQuantity={getCardQuantityFromVariant(selectedOrder.line_items[0]?.variant_title || '')}
+                          storyType={selectedOrder.line_items[0]?.properties?.find((p: any) => p.name === "story-type")?.value || ""}
                         />
                       </div>
 
